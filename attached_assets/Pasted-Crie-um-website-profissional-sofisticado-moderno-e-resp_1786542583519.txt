@@ -1,0 +1,612 @@
+Crie um website profissional, sofisticado, moderno e responsivo para um hotel de alto padrão chamado [HOTEL HORIZON].
+
+1. Objetivo do projeto
+
+O objetivo é criar uma experiência digital premium que transmita imediatamente:
+
+Luxo
+Conforto
+Exclusividade
+Tranquilidade
+Hospitalidade
+Confiança
+Experiência memorável
+
+O site deve ter como principal objetivo gerar reservas diretas, além de apresentar o hotel, seus quartos, experiências, gastronomia e localização.
+
+A experiência deve ser visualmente semelhante à de grandes hotéis boutique e resorts internacionais, mas sem copiar nenhum site existente.
+
+2. Direção visual
+
+Utilize uma estética luxuosa, minimalista, elegante e contemporânea.
+
+Paleta de cores
+Fundo principal: branco quente / off-white #F7F4EE
+Preto sofisticado: #171717
+Dourado discreto: #B89B5E
+Bege: #D8CCB8
+Cinza secundário: #77736D
+Verde escuro opcional: #24352D
+
+O dourado deve ser utilizado apenas como detalhe, evitando uma aparência exagerada ou artificial.
+
+Tipografia
+
+Utilize uma combinação de:
+
+Fonte serifada elegante para títulos, como Playfair Display, Cormorant Garamond ou equivalente.
+Fonte sans-serif moderna para textos e interface, como Inter, Manrope ou equivalente.
+
+Os títulos devem ser grandes, sofisticados e com bastante espaço entre os elementos.
+
+3. Header
+
+Criar um header elegante e responsivo.
+
+Desktop:
+
+Logo do hotel à esquerda
+Menu central:
+O Hotel
+Acomodações
+Experiências
+Gastronomia
+Galeria
+Localização
+Botão destacado à direita: Reservar agora
+Idioma: PT | EN
+
+O header deve ficar transparente sobre o hero inicialmente e transformar-se em um header sólido ao fazer scroll.
+
+Mobile:
+
+Logo
+Menu hamburger
+Botão de reserva
+
+O menu mobile deve ocupar a tela inteira e possuir uma animação suave.
+
+4. Hero Section
+
+Criar uma primeira seção visualmente impactante ocupando aproximadamente 90–100vh.
+
+Utilizar uma fotografia de alta qualidade de um hotel sofisticado, preferencialmente mostrando:
+
+Arquitetura
+Piscina
+Natureza
+Quarto luxuoso
+Vista panorâmica
+Ou combinação desses elementos
+
+Aplicar um overlay escuro e sutil para garantir boa legibilidade.
+
+Texto sobre a imagem:
+
+[NOME DO HOTEL]
+
+"Uma experiência para lembrar."
+
+Texto complementar:
+
+"Descubra um refúgio onde conforto, natureza e hospitalidade se encontram."
+
+Adicionar dois CTAs:
+
+Reservar sua estadia
+Conhecer o hotel
+
+Adicionar um pequeno indicador de scroll na parte inferior.
+
+5. Módulo de reservas
+
+Logo abaixo ou sobreposto ao hero, criar um booking widget premium.
+
+Campos:
+
+Check-in
+Check-out
+Hóspedes
+Quartos
+Código promocional
+
+Botão:
+
+Ver disponibilidade
+
+O componente deve possuir aparência sofisticada, com bordas suaves, sombras discretas e excelente experiência mobile.
+
+Ao clicar em "Ver disponibilidade", direcionar para uma página ou fluxo de reservas.
+
+6. Seção "O Hotel"
+
+Criar uma seção editorial com bastante espaço em branco.
+
+Título:
+
+Mais do que uma estadia. Uma experiência.
+
+Texto:
+
+"[NOME DO HOTEL] foi criado para proporcionar momentos de tranquilidade, conforto e conexão. Cada detalhe foi cuidadosamente pensado para transformar uma simples hospedagem em uma experiência memorável."
+
+Adicionar uma imagem grande e uma imagem secundária menor, criando uma composição editorial assimétrica.
+
+Adicionar link:
+
+Descubra o hotel →
+
+7. Diferenciais
+
+Criar uma seção com quatro ou cinco diferenciais.
+
+Exemplos:
+
+Localização privilegiada
+
+"Próximo aos principais pontos de interesse da região."
+
+Experiência personalizada
+
+"Atendimento pensado para cada hóspede."
+
+Gastronomia
+
+"Sabores autorais e ingredientes selecionados."
+
+Bem-estar
+
+"Espaços dedicados ao descanso e à renovação."
+
+Natureza
+
+"Uma conexão única com o entorno."
+
+Utilizar pequenos ícones minimalistas ou elementos tipográficos, evitando ícones genéricos demais.
+
+8. Acomodações
+
+Criar uma seção chamada:
+
+Acomodações
+
+Subtítulo:
+
+"Espaços pensados para você desacelerar."
+
+Apresentar os quartos em cards grandes e elegantes.
+
+Cada card deve possuir:
+
+Imagem grande
+Nome da acomodação
+Pequena descrição
+Capacidade
+Área em m²
+Características principais
+Botão "Conhecer acomodação"
+
+Exemplos:
+
+Suíte Jardim
+
+"Um espaço acolhedor cercado pela natureza."
+
+Suíte Vista
+
+"Conforto e privacidade com uma vista privilegiada."
+
+Suíte Master
+
+"Uma experiência completa para quem busca exclusividade."
+
+Criar hover effects suaves nas imagens.
+
+9. Página individual de acomodação
+
+Ao clicar em uma acomodação, criar uma página detalhada contendo:
+
+Galeria de imagens
+Nome da acomodação
+Descrição completa
+Número de hóspedes
+Área
+Tipo de cama
+Vista
+Comodidades
+Serviços disponíveis
+Política de hospedagem
+Preço ou indicação "consulte disponibilidade"
+CTA fixo: Reservar esta acomodação
+
+Criar uma galeria elegante com possibilidade de abrir imagens em tela cheia.
+
+10. Experiências
+
+Criar uma seção visual chamada:
+
+Viva o seu tempo do seu jeito.
+
+Apresentar experiências em formato de cards ou grid editorial:
+
+Spa
+Piscina
+Trilhas
+Passeios
+Experiências gastronômicas
+Yoga
+Momentos românticos
+Experiências personalizadas
+
+Cada experiência deve ter uma imagem de alta qualidade e uma descrição curta.
+
+11. Gastronomia
+
+Criar uma seção sofisticada para o restaurante do hotel.
+
+Título:
+
+Sabores que fazem parte da experiência.
+
+Apresentar:
+
+Restaurante
+Café da manhã
+Bar
+Room service
+Experiências gastronômicas
+
+Adicionar imagens grandes de pratos e do ambiente.
+
+CTA:
+
+Conheça nossa gastronomia
+
+Se houver restaurante próprio, criar uma página dedicada ao restaurante.
+
+12. Spa e bem-estar
+
+Criar uma seção visualmente tranquila.
+
+Utilizar imagens com:
+
+Massagens
+Sauna
+Piscina
+Tratamentos
+Ambiente relaxante
+
+Título:
+
+Seu momento de pausa.
+
+Texto:
+
+"Permita-se desacelerar, respirar e aproveitar cada instante."
+
+CTA:
+
+Conhecer o Spa
+
+13. Galeria
+
+Criar uma galeria visual premium com imagens de:
+
+Fachada
+Quartos
+Suítes
+Piscina
+Restaurante
+Gastronomia
+Natureza
+Experiências
+Áreas comuns
+
+Utilizar um grid assimétrico inspirado em revistas de arquitetura e hotelaria.
+
+Permitir abertura das imagens em lightbox.
+
+14. Depoimentos
+
+Criar uma seção de avaliações de hóspedes.
+
+Título:
+
+Histórias de quem esteve aqui.
+
+Exibir 3–5 depoimentos.
+
+Cada depoimento deve conter:
+
+Comentário
+Nome
+Cidade/país
+Avaliação em estrelas, se aplicável
+
+Exemplo:
+
+"Um lugar incrível, com atendimento impecável e uma atmosfera que realmente transmite paz."
+
+— Mariana, São Paulo
+
+Utilizar um carrossel elegante.
+
+15. Localização
+
+Criar uma seção chamada:
+
+Encontre o seu caminho até nós.
+
+Mostrar:
+
+Endereço
+Cidade
+Estado
+Telefone
+WhatsApp
+E-mail
+Distância dos principais pontos turísticos
+Mapa interativo
+
+Adicionar botão:
+
+Como chegar
+
+16. Ofertas especiais
+
+Criar uma seção opcional:
+
+Experiências especiais
+
+Apresentar ofertas como:
+
+Fim de semana romântico
+Lua de mel
+Feriados
+Experiência gastronômica
+Pacote de aniversário
+Day spa
+
+Cada oferta deve possuir:
+
+Imagem
+Título
+Descrição
+Condições
+CTA
+17. Call to Action final
+
+Antes do footer, criar uma seção de impacto visual com uma imagem de fundo.
+
+Texto:
+
+Seu próximo momento começa aqui.
+
+"Reserve sua estadia e descubra [NOME DO HOTEL]."
+
+Botão:
+
+Reservar agora
+
+18. Footer
+
+Criar footer elegante e completo.
+
+Colunas:
+
+Hotel
+O Hotel
+Acomodações
+Experiências
+Gastronomia
+Spa
+Galeria
+Informações
+Localização
+Contato
+FAQ
+Política de privacidade
+Termos e condições
+Contato
+Telefone
+WhatsApp
+E-mail
+Endereço
+Redes sociais
+Instagram
+Facebook
+TikTok
+
+Adicionar newsletter:
+
+Receba novidades e experiências especiais
+
+Campo de e-mail + botão Inscrever-se
+
+Na parte inferior:
+
+© 2026 [NOME DO HOTEL]. Todos os direitos reservados.
+
+19. Responsividade
+
+O website deve ser totalmente responsivo para:
+
+Desktop
+Notebook
+Tablet
+Smartphone
+
+Priorizar uma experiência mobile excelente.
+
+No mobile:
+
+Menu hamburger
+Cards em coluna
+Imagens adaptadas
+Botões grandes e fáceis de tocar
+Booking widget otimizado
+CTA de reserva sempre acessível
+20. Animações
+
+Utilizar animações sofisticadas e discretas:
+
+Fade-in ao entrar na viewport
+Parallax muito sutil
+Transições suaves
+Hover nas imagens
+Microinterações nos botões
+Animação suave no menu
+Transições entre páginas
+
+Evitar animações excessivas ou que prejudiquem a performance.
+
+21. UX
+
+A navegação deve ser intuitiva e orientada para conversão.
+
+O visitante deve conseguir chegar à reserva em poucos cliques.
+
+Adicionar CTAs de reserva estrategicamente ao longo da página.
+
+Utilizar textos curtos, claros e sofisticados.
+
+Evitar excesso de informações na primeira dobra.
+
+22. SEO
+
+O site deve possuir estrutura SEO completa.
+
+Configurar:
+
+Title
+Meta description
+Open Graph
+URLs amigáveis
+Hierarquia correta de H1, H2 e H3
+Alt text em imagens
+Schema Markup para hotel
+Schema Markup para avaliações quando aplicável
+Sitemap
+Robots.txt
+Dados estruturados de localização e contato
+
+Criar conteúdo otimizado para pesquisas relacionadas a:
+
+Hotel em [CIDADE]
+Hotel de luxo em [CIDADE]
+Hotel boutique em [CIDADE]
+Onde ficar em [CIDADE]
+Hospedagem em [CIDADE]
+23. Performance
+
+O site deve ser rápido e otimizado.
+
+Implementar:
+
+Lazy loading de imagens
+Imagens WebP/AVIF
+Compressão
+Code splitting quando aplicável
+Carregamento otimizado de fontes
+Evitar bibliotecas desnecessárias
+Core Web Vitals otimizados
+
+As imagens devem manter alta qualidade sem prejudicar o tempo de carregamento.
+
+24. Acessibilidade
+
+Garantir:
+
+Contraste adequado
+Navegação por teclado
+Estados de foco
+Labels nos formulários
+Alt text
+Estrutura semântica HTML
+Botões acessíveis
+Compatibilidade com leitores de tela
+Respeito à preferência de redução de movimento
+25. Tecnologia
+
+Caso seja necessário escolher a stack, utilizar:
+
+React
+Next.js
+TypeScript
+Tailwind CSS
+Componentes reutilizáveis
+Arquitetura organizada
+SEO com recursos nativos do Next.js
+
+O código deve ser limpo, modular, escalável e fácil de manter.
+
+26. CMS / Conteúdo
+
+Estruturar o projeto para que futuramente seja possível editar facilmente:
+
+Quartos
+Fotos
+Preços
+Ofertas
+Experiências
+Depoimentos
+Informações do hotel
+Contatos
+
+Não deixar informações importantes hardcoded quando for possível criar uma estrutura de dados reutilizável.
+
+27. Integrações
+
+Preparar a arquitetura para integração com:
+
+Motor de reservas
+WhatsApp
+Google Maps
+Google Analytics
+Google Tag Manager
+Meta Pixel
+Sistema de avaliações
+Newsletter
+CRM
+
+Os botões de reserva devem estar preparados para receber posteriormente a URL ou API do sistema de reservas real.
+
+28. Conversão
+
+Implementar estratégias de conversão:
+
+Botão "Reservar agora" no header
+CTA após a seção de acomodações
+CTA após experiências
+CTA no final da página
+Botão de WhatsApp
+Booking widget
+Ofertas especiais
+Prova social através de avaliações
+
+No mobile, considerar um botão fixo na parte inferior:
+
+Reservar agora
+
+29. Conteúdo de exemplo
+
+Caso não sejam fornecidos textos ou imagens reais, utilizar conteúdo fictício de alta qualidade apenas como placeholder.
+
+Não utilizar textos genéricos como "Lorem ipsum".
+
+As imagens devem representar um hotel sofisticado e coerente com a proposta visual.
+
+30. Resultado esperado
+
+O resultado final deve parecer um website real de hotel boutique de alto padrão, e não um template genérico.
+
+Priorizar:
+
+Impacto visual
+Fotografia
+Tipografia
+Espaçamento
+Experiência do usuário
+Conversão para reservas
+Performance
+8

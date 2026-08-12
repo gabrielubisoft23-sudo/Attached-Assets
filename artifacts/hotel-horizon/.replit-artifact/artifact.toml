@@ -1,0 +1,28 @@
+kind = "web"
+previewPath = "/"
+title = "Hotel Horizon"
+description = "A premium, conversion-focused boutique hotel website for Hotel Horizon, showcasing accommodations, experiences, gastronomy, wellness, gallery, location, testimonials, and direct booking pathways."
+version = "1.0.0"
+id = "artifacts/hotel-horizon"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 23594
+
+[services.development]
+run = "pnpm --filter @workspace/hotel-horizon run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/hotel-horizon", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/hotel-horizon/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "23594"
+BASE_PATH = "/"
