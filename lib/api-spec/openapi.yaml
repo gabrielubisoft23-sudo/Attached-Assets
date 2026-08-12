@@ -10,6 +10,8 @@ servers:
 tags:
   - name: health
     description: Health operations
+  - name: reservations
+    description: Hotel availability and reservation operations
 paths:
   /healthz:
     get:
@@ -24,7 +26,93 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+  /availability:
+    get:
+      operationId: checkAvailability
+      tags: [reservations]
+      summary: Check hotel availability
+      description: Checks room availability for a date range and guest count.
+      parameters:
+        - $ref: "#/components/parameters/Checkin"
+        - $ref: "#/components/parameters/Checkout"
+        - $ref: "#/components/parameters/Guests"
+        - $ref: "#/components/parameters/Rooms"
+      responses:
+        "200":
+          description: Availability result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AvailabilityResponse"
+        "400":
+          description: Invalid dates or guest counts
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /reservations:
+    post:
+      operationId: createReservation
+      tags: [reservations]
+      summary: Create a hotel reservation
+      description: Creates a confirmed reservation after checking for overlapping bookings.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReservationInput"
+      responses:
+        "201":
+          description: Confirmed reservation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Reservation"
+        "400":
+          description: Invalid reservation details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: No rooms available for the requested stay
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 components:
+  parameters:
+    Checkin:
+      name: checkin
+      in: query
+      required: true
+      schema:
+        type: string
+        format: date
+    Checkout:
+      name: checkout
+      in: query
+      required: true
+      schema:
+        type: string
+        format: date
+    Guests:
+      name: guests
+      in: query
+      required: true
+      schema:
+        type: number
+        minimum: 1
+        maximum: 6
+    Rooms:
+      name: rooms
+      in: query
+      required: true
+      schema:
+        type: number
+        minimum: 1
+        maximum: 3
   schemas:
     HealthStatus:
       type: object
@@ -33,4 +121,135 @@ components:
           type: string
       required:
         - status
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+      required:
+        - error
+    AccommodationOption:
+      type: object
+      properties:
+        slug:
+          type: string
+        name:
+          type: string
+        availableRooms:
+          type: number
+        maxGuests:
+          type: number
+      required:
+        - slug
+        - name
+        - availableRooms
+        - maxGuests
+    AvailabilityResponse:
+      type: object
+      properties:
+        available:
+          type: boolean
+        roomsAvailable:
+          type: number
+        accommodationSlug:
+          type: ["string", "null"]
+        accommodationName:
+          type: ["string", "null"]
+        message:
+          type: string
+        options:
+          type: array
+          items:
+            $ref: "#/components/schemas/AccommodationOption"
+      required:
+        - available
+        - roomsAvailable
+        - accommodationSlug
+        - accommodationName
+        - message
+        - options
+    ReservationInput:
+      type: object
+      properties:
+        checkin:
+          type: string
+          format: date
+        checkout:
+          type: string
+          format: date
+        guests:
+          type: number
+          minimum: 1
+          maximum: 6
+        rooms:
+          type: number
+          minimum: 1
+          maximum: 3
+        accommodationSlug:
+          type: ["string", "null"]
+        guestName:
+          type: string
+          minLength: 2
+        guestEmail:
+          type: string
+        guestPhone:
+          type: string
+          minLength: 8
+        specialRequests:
+          type: ["string", "null"]
+      required:
+        - checkin
+        - checkout
+        - guests
+        - rooms
+        - guestName
+        - guestEmail
+        - guestPhone
+    Reservation:
+      type: object
+      properties:
+        id:
+          type: number
+        confirmationCode:
+          type: string
+        status:
+          type: string
+          enum: [confirmed]
+        checkin:
+          type: string
+          format: date
+        checkout:
+          type: string
+          format: date
+        guests:
+          type: number
+        rooms:
+          type: number
+        accommodationSlug:
+          type: string
+        accommodationName:
+          type: string
+        guestName:
+          type: string
+        guestEmail:
+          type: string
+        guestPhone:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - confirmationCode
+        - status
+        - checkin
+        - checkout
+        - guests
+        - rooms
+        - accommodationSlug
+        - accommodationName
+        - guestName
+        - guestEmail
+        - guestPhone
+        - createdAt
 
