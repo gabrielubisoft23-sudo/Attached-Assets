@@ -1,11 +1,17 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import {
+  getCheckAvailabilityQueryKey,
+  useCheckAvailability,
+  useCreateReservation,
+} from '@workspace/api-client-react';
+import { useForm } from 'react-hook-form';
 import { ErrorBoundary } from '@/components/error-boundary';
 import { Toaster } from '@/components/ui/toaster';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import NotFound from '@/pages/not-found';
 import { Link, Route, Switch, Router as WouterRouter, useLocation, useRoute } from 'wouter';
-import { ArrowDown, ArrowLeft, ArrowRight, BedDouble, CalendarDays, ChevronDown, ChevronUp, Clock3, Coffee, Compass, Globe2, Heart, Instagram, Mail, MapPin, Menu, Minus, Mountain, MoveUpRight, Phone, Plus, Quote, Send, Sparkles, Star, Utensils, Users, X } from 'lucide-react';
+import { ArrowDown, ArrowLeft, ArrowRight, BedDouble, CalendarDays, ChevronDown, ChevronUp, Clock3, Coffee, Compass, Globe2, Heart, Instagram, Mail, MapPin, Menu, MessageCircle, Minus, Mountain, MoveUpRight, Phone, Plus, Quote, Send, ShieldCheck, Sparkles, Star, Utensils, Users, X } from 'lucide-react';
 
 const queryClient = new QueryClient();
 const image = (name: string) => `/images/${name}.jpg`;

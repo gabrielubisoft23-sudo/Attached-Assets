@@ -15,10 +15,15 @@ export interface Reservation {
   checkout: Date;
   guests: number;
   rooms: number;
+  totalAmount: number;
   accommodationSlug: string;
   accommodationName: string;
   guestName: string;
   guestEmail: string;
   guestPhone: string;
+  /** @nullable */
+  offerCode: string | null;
+  /** @nullable */
+  offerName: string | null;
   createdAt: Date;
 }

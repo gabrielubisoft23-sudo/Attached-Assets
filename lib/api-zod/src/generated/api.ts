@@ -44,7 +44,12 @@ export const CheckAvailabilityResponse = zod.object({
   "slug": zod.string(),
   "name": zod.string(),
   "availableRooms": zod.number(),
-  "maxGuests": zod.number()
+  "maxGuests": zod.number(),
+  "description": zod.string(),
+  "pricePerNight": zod.number(),
+  "totalPrice": zod.number(),
+  "photos": zod.array(zod.string()),
+  "amenities": zod.array(zod.string())
 }))
 })
 
@@ -68,7 +73,8 @@ export const CreateReservationBody = zod.object({
   "checkout": zod.coerce.date(),
   "guests": zod.number().min(1).max(createReservationBodyGuestsMax),
   "rooms": zod.number().min(1).max(createReservationBodyRoomsMax),
-  "accommodationSlug": zod.string().nullish(),
+  "accommodationSlug": zod.string(),
+  "offerCode": zod.string().nullish(),
   "guestName": zod.string().min(createReservationBodyGuestNameMin),
   "guestEmail": zod.string(),
   "guestPhone": zod.string().min(createReservationBodyGuestPhoneMin),
@@ -78,16 +84,89 @@ export const CreateReservationBody = zod.object({
 export const CreateReservationResponse = zod.object({
   "id": zod.number(),
   "confirmationCode": zod.string(),
-  "status": zod.enum(['confirmed']),
+  "status": zod.enum(['confirmed', 'cancelled']),
   "checkin": zod.coerce.date(),
   "checkout": zod.coerce.date(),
   "guests": zod.number(),
   "rooms": zod.number(),
+  "totalAmount": zod.number(),
   "accommodationSlug": zod.string(),
   "accommodationName": zod.string(),
   "guestName": zod.string(),
   "guestEmail": zod.string(),
   "guestPhone": zod.string(),
+  "offerCode": zod.string().nullable(),
+  "offerName": zod.string().nullable(),
+  "createdAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Get a reservation
+ */
+export const GetReservationParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetReservationResponse = zod.object({
+  "id": zod.number(),
+  "confirmationCode": zod.string(),
+  "status": zod.enum(['confirmed', 'cancelled']),
+  "checkin": zod.coerce.date(),
+  "checkout": zod.coerce.date(),
+  "guests": zod.number(),
+  "rooms": zod.number(),
+  "totalAmount": zod.number(),
+  "accommodationSlug": zod.string(),
+  "accommodationName": zod.string(),
+  "guestName": zod.string(),
+  "guestEmail": zod.string(),
+  "guestPhone": zod.string(),
+  "offerCode": zod.string().nullable(),
+  "offerName": zod.string().nullable(),
+  "createdAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Cancel or update a reservation
+ */
+export const UpdateReservationParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const updateReservationBodyGuestsMax = 6;
+
+export const updateReservationBodyRoomsMax = 3;
+
+
+
+export const UpdateReservationBody = zod.object({
+  "status": zod.enum(['confirmed', 'cancelled']).optional(),
+  "checkin": zod.coerce.date().optional(),
+  "checkout": zod.coerce.date().optional(),
+  "guests": zod.number().min(1).max(updateReservationBodyGuestsMax).optional(),
+  "rooms": zod.number().min(1).max(updateReservationBodyRoomsMax).optional(),
+  "accommodationSlug": zod.string().optional(),
+  "offerCode": zod.string().nullish()
+})
+
+export const UpdateReservationResponse = zod.object({
+  "id": zod.number(),
+  "confirmationCode": zod.string(),
+  "status": zod.enum(['confirmed', 'cancelled']),
+  "checkin": zod.coerce.date(),
+  "checkout": zod.coerce.date(),
+  "guests": zod.number(),
+  "rooms": zod.number(),
+  "totalAmount": zod.number(),
+  "accommodationSlug": zod.string(),
+  "accommodationName": zod.string(),
+  "guestName": zod.string(),
+  "guestEmail": zod.string(),
+  "guestPhone": zod.string(),
+  "offerCode": zod.string().nullable(),
+  "offerName": zod.string().nullable(),
   "createdAt": zod.coerce.date()
 })
 

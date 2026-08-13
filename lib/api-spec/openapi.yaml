@@ -26,7 +26,7 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
-  /availability:
+  /rooms/availability:
     get:
       operationId: checkAvailability
       tags: [reservations]
@@ -81,6 +81,63 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+  /reservations/{id}:
+    get:
+      operationId: getReservation
+      tags: [reservations]
+      summary: Get a reservation
+      parameters:
+        - $ref: "#/components/parameters/ReservationId"
+      responses:
+        "200":
+          description: Reservation details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Reservation"
+        "404":
+          description: Reservation not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    patch:
+      operationId: updateReservation
+      tags: [reservations]
+      summary: Cancel or update a reservation
+      parameters:
+        - $ref: "#/components/parameters/ReservationId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReservationUpdate"
+      responses:
+        "200":
+          description: Updated reservation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Reservation"
+        "400":
+          description: Invalid reservation update
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Reservation not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Updated dates are unavailable
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 components:
   parameters:
     Checkin:
@@ -113,6 +170,12 @@ components:
         type: number
         minimum: 1
         maximum: 3
+    ReservationId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: number
   schemas:
     HealthStatus:
       type: object
@@ -139,11 +202,30 @@ components:
           type: number
         maxGuests:
           type: number
+        description:
+          type: string
+        pricePerNight:
+          type: number
+        totalPrice:
+          type: number
+        photos:
+          type: array
+          items:
+            type: string
+        amenities:
+          type: array
+          items:
+            type: string
       required:
         - slug
         - name
         - availableRooms
         - maxGuests
+        - description
+        - pricePerNight
+        - totalPrice
+        - photos
+        - amenities
     AvailabilityResponse:
       type: object
       properties:
@@ -186,6 +268,8 @@ components:
           minimum: 1
           maximum: 3
         accommodationSlug:
+          type: string
+        offerCode:
           type: ["string", "null"]
         guestName:
           type: string
@@ -202,6 +286,7 @@ components:
         - checkout
         - guests
         - rooms
+        - accommodationSlug
         - guestName
         - guestEmail
         - guestPhone
@@ -214,7 +299,7 @@ components:
           type: string
         status:
           type: string
-          enum: [confirmed]
+          enum: [confirmed, cancelled]
         checkin:
           type: string
           format: date
@@ -224,6 +309,8 @@ components:
         guests:
           type: number
         rooms:
+          type: number
+        totalAmount:
           type: number
         accommodationSlug:
           type: string
@@ -235,6 +322,10 @@ components:
           type: string
         guestPhone:
           type: string
+        offerCode:
+          type: ["string", "null"]
+        offerName:
+          type: ["string", "null"]
         createdAt:
           type: string
           format: date-time
@@ -246,10 +337,37 @@ components:
         - checkout
         - guests
         - rooms
+        - totalAmount
         - accommodationSlug
         - accommodationName
         - guestName
         - guestEmail
         - guestPhone
+        - offerCode
+        - offerName
         - createdAt
+    ReservationUpdate:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [confirmed, cancelled]
+        checkin:
+          type: string
+          format: date
+        checkout:
+          type: string
+          format: date
+        guests:
+          type: number
+          minimum: 1
+          maximum: 6
+        rooms:
+          type: number
+          minimum: 1
+          maximum: 3
+        accommodationSlug:
+          type: string
+        offerCode:
+          type: ["string", "null"]
 

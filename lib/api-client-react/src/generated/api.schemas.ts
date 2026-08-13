@@ -18,6 +18,11 @@ export interface AccommodationOption {
   name: string;
   availableRooms: number;
   maxGuests: number;
+  description: string;
+  pricePerNight: number;
+  totalPrice: number;
+  photos: string[];
+  amenities: string[];
 }
 
 export interface AvailabilityResponse {
@@ -44,8 +49,9 @@ export interface ReservationInput {
      * @maximum 3
      */
   rooms: number;
+  accommodationSlug: string;
   /** @nullable */
-  accommodationSlug?: string | null;
+  offerCode?: string | null;
   /** @minLength 2 */
   guestName: string;
   guestEmail: string;
@@ -60,6 +66,7 @@ export type ReservationStatus = typeof ReservationStatus[keyof typeof Reservatio
 
 export const ReservationStatus = {
   confirmed: 'confirmed',
+  cancelled: 'cancelled',
 } as const;
 
 export interface Reservation {
@@ -70,12 +77,44 @@ export interface Reservation {
   checkout: string;
   guests: number;
   rooms: number;
+  totalAmount: number;
   accommodationSlug: string;
   accommodationName: string;
   guestName: string;
   guestEmail: string;
   guestPhone: string;
+  /** @nullable */
+  offerCode: string | null;
+  /** @nullable */
+  offerName: string | null;
   createdAt: string;
+}
+
+export type ReservationUpdateStatus = typeof ReservationUpdateStatus[keyof typeof ReservationUpdateStatus];
+
+
+export const ReservationUpdateStatus = {
+  confirmed: 'confirmed',
+  cancelled: 'cancelled',
+} as const;
+
+export interface ReservationUpdate {
+  status?: ReservationUpdateStatus;
+  checkin?: string;
+  checkout?: string;
+  /**
+     * @minimum 1
+     * @maximum 6
+     */
+  guests?: number;
+  /**
+     * @minimum 1
+     * @maximum 3
+     */
+  rooms?: number;
+  accommodationSlug?: string;
+  /** @nullable */
+  offerCode?: string | null;
 }
 
 export type CheckinParameter = string;

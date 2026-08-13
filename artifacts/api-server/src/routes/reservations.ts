@@ -1,29 +1,76 @@
 import { randomUUID } from "node:crypto";
 import { Router, type IRouter } from "express";
 import { and, asc, eq, gt, lt, sql } from "drizzle-orm";
-import { db, hotelRoomTypesTable, reservationsTable } from "@workspace/db";
+import { db, reservationsTable, roomsTable } from "@workspace/db";
 import {
   CheckAvailabilityQueryParams,
   CheckAvailabilityResponse,
   CreateReservationBody,
   CreateReservationResponse,
+  GetReservationParams,
+  GetReservationResponse,
+  UpdateReservationBody,
+  UpdateReservationParams,
+  UpdateReservationResponse,
 } from "@workspace/api-zod";
 
 const router: IRouter = Router();
 
 const defaultRoomTypes = [
-  { slug: "suite-jardim", name: "Suíte Jardim", maxGuests: 2, totalRooms: 6 },
-  { slug: "suite-vista", name: "Suíte Vista", maxGuests: 2, totalRooms: 5 },
-  { slug: "suite-master", name: "Suíte Master", maxGuests: 3, totalRooms: 2 },
+  {
+    slug: "suite-jardim",
+    name: "Suíte Jardim",
+    description: "Um espaço acolhedor cercado pela natureza.",
+    pricePerNight: 1850,
+    maxGuests: 2,
+    totalRooms: 6,
+    photos: ["/images/suite.jpg", "/images/detail.jpg"],
+    amenities: ["Varanda privativa", "Banheira de imersão", "Cama king size"],
+  },
+  {
+    slug: "suite-vista",
+    name: "Suíte Vista",
+    description: "Conforto e privacidade com uma vista privilegiada.",
+    pricePerNight: 2450,
+    maxGuests: 2,
+    totalRooms: 5,
+    photos: ["/images/view.jpg", "/images/suite.jpg"],
+    amenities: ["Vista panorâmica", "Sala de leitura", "Banheira junto à janela"],
+  },
+  {
+    slug: "suite-master",
+    name: "Suíte Master",
+    description: "Uma experiência completa para quem busca exclusividade.",
+    pricePerNight: 3900,
+    maxGuests: 3,
+    totalRooms: 2,
+    photos: ["/images/detail.jpg", "/images/view.jpg"],
+    amenities: ["Terraço panorâmico", "Sala de estar", "Lareira a lenha"],
+  },
+  {
+    slug: "suite-bosque",
+    name: "Suíte Bosque",
+    description: "Silêncio, luz natural e o verde da Mantiqueira por todos os lados.",
+    pricePerNight: 2150,
+    maxGuests: 2,
+    totalRooms: 4,
+    photos: ["/images/nature.jpg", "/images/suite.jpg"],
+    amenities: ["Jardim privativo", "Ducha dupla", "Café da manhã na varanda"],
+  },
 ];
 
 class NoAvailabilityError extends Error {}
 
+const offers = {
+  "fim-de-semana": { name: "Fim de semana a dois", discountPercent: 10 },
+  "ritmo-da-serra": { name: "Ritmo da serra", discountPercent: 15 },
+} as const;
+
 async function ensureRoomTypes(): Promise<void> {
   await db
-    .insert(hotelRoomTypesTable)
+    .insert(roomsTable)
     .values(defaultRoomTypes)
-    .onConflictDoNothing({ target: hotelRoomTypesTable.slug });
+    .onConflictDoNothing({ target: roomsTable.slug });
 }
 
 function parseCalendarDate(value: unknown): Date | null {
@@ -50,6 +97,14 @@ function isValidEmail(value: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 }
 
+function nightsBetween(checkin: Date, checkout: Date): number {
+  return Math.round((checkout.getTime() - checkin.getTime()) / 86_400_000);
+}
+
+function reservationDate(value: string): Date {
+  return new Date(`${value}T00:00:00.000Z`);
+}
+
 async function bookedRooms(
   checkin: string,
   checkout: string,
@@ -72,7 +127,7 @@ async function bookedRooms(
   return Number(result?.total ?? 0);
 }
 
-router.get("/availability", async (req, res): Promise<void> => {
+router.get("/rooms/availability", async (req, res): Promise<void> => {
   const checkin = parseCalendarDate(req.query.checkin);
   const checkout = parseCalendarDate(req.query.checkout);
 
@@ -93,8 +148,8 @@ router.get("/availability", async (req, res): Promise<void> => {
   const checkoutString = dateOnly(checkout);
   const roomTypes = await db
     .select()
-    .from(hotelRoomTypesTable)
-    .orderBy(asc(hotelRoomTypesTable.id));
+    .from(roomsTable)
+    .orderBy(asc(roomsTable.id));
 
   const options = await Promise.all(
     roomTypes.map(async (roomType) => {
@@ -103,6 +158,11 @@ router.get("/availability", async (req, res): Promise<void> => {
       return {
         slug: roomType.slug,
         name: roomType.name,
+        description: roomType.description,
+        pricePerNight: roomType.pricePerNight,
+        totalPrice: roomType.pricePerNight * nightsBetween(checkin, checkout) * parsed.data.rooms,
+        photos: roomType.photos,
+        amenities: roomType.amenities,
         availableRooms,
         maxGuests: roomType.maxGuests,
       };
@@ -153,20 +213,28 @@ router.post("/reservations", async (req, res): Promise<void> => {
   const checkin = dateOnly(parsed.data.checkin);
   const checkout = dateOnly(parsed.data.checkout);
   const requestedSlug = parsed.data.accommodationSlug ?? null;
+  const selectedOffer = parsed.data.offerCode
+    ? offers[parsed.data.offerCode as keyof typeof offers]
+    : undefined;
+
+  if (parsed.data.offerCode && !selectedOffer) {
+    res.status(400).json({ error: "Oferta selecionada inválida." });
+    return;
+  }
 
   try {
     const reservation = await db.transaction(async (tx) => {
       const roomTypes = requestedSlug
         ? await tx
             .select()
-            .from(hotelRoomTypesTable)
-            .where(eq(hotelRoomTypesTable.slug, requestedSlug))
-            .orderBy(asc(hotelRoomTypesTable.id))
+            .from(roomsTable)
+            .where(eq(roomsTable.slug, requestedSlug))
+            .orderBy(asc(roomsTable.id))
             .for("update")
         : await tx
             .select()
-            .from(hotelRoomTypesTable)
-            .orderBy(asc(hotelRoomTypesTable.id))
+            .from(roomsTable)
+            .orderBy(asc(roomsTable.id))
             .for("update");
 
       for (const roomType of roomTypes) {
@@ -193,6 +261,14 @@ router.post("/reservations", async (req, res): Promise<void> => {
           continue;
         }
 
+        const baseAmount =
+          roomType.pricePerNight *
+          nightsBetween(parsed.data.checkin, parsed.data.checkout) *
+          parsed.data.rooms;
+        const totalAmount = selectedOffer
+          ? Math.round(baseAmount * (1 - selectedOffer.discountPercent / 100))
+          : baseAmount;
+
         const [created] = await tx
           .insert(reservationsTable)
           .values({
@@ -202,11 +278,14 @@ router.post("/reservations", async (req, res): Promise<void> => {
             checkout,
             guests: parsed.data.guests,
             rooms: parsed.data.rooms,
+            totalAmount,
             accommodationSlug: roomType.slug,
             accommodationName: roomType.name,
             guestName: parsed.data.guestName.trim(),
             guestEmail: parsed.data.guestEmail.trim().toLowerCase(),
             guestPhone: parsed.data.guestPhone.trim(),
+            offerCode: parsed.data.offerCode ?? null,
+            offerName: selectedOffer?.name ?? null,
             specialRequests: parsed.data.specialRequests?.trim() || null,
           })
           .returning();
@@ -227,6 +306,135 @@ router.post("/reservations", async (req, res): Promise<void> => {
     req.log.error({ err: error }, "Failed to create reservation");
     res.status(500).json({ error: "Não foi possível concluir a reserva agora." });
   }
+});
+
+router.get("/reservations/:id", async (req, res): Promise<void> => {
+  const parsed = GetReservationParams.safeParse(req.params);
+  if (!parsed.success) {
+    res.status(400).json({ error: "Código de reserva inválido." });
+    return;
+  }
+
+  const [reservation] = await db
+    .select()
+    .from(reservationsTable)
+    .where(eq(reservationsTable.id, parsed.data.id));
+
+  if (!reservation) {
+    res.status(404).json({ error: "Reserva não encontrada." });
+    return;
+  }
+
+  res.json(GetReservationResponse.parse(reservation));
+});
+
+router.patch("/reservations/:id", async (req, res): Promise<void> => {
+  const params = UpdateReservationParams.safeParse(req.params);
+  const rawBody = (req.body ?? {}) as Record<string, unknown>;
+  const body = UpdateReservationBody.safeParse({
+    ...rawBody,
+    ...(rawBody.checkin !== undefined
+      ? { checkin: parseCalendarDate(rawBody.checkin) }
+      : {}),
+    ...(rawBody.checkout !== undefined
+      ? { checkout: parseCalendarDate(rawBody.checkout) }
+      : {}),
+  });
+
+  if (!params.success || !body.success) {
+    res.status(400).json({ error: "Atualização de reserva inválida." });
+    return;
+  }
+
+  const [existing] = await db
+    .select()
+    .from(reservationsTable)
+    .where(eq(reservationsTable.id, params.data.id));
+
+  if (!existing) {
+    res.status(404).json({ error: "Reserva não encontrada." });
+    return;
+  }
+
+  if (body.data.status === "cancelled") {
+    const [cancelled] = await db
+      .update(reservationsTable)
+      .set({ status: "cancelled" })
+      .where(eq(reservationsTable.id, params.data.id))
+      .returning();
+    res.json(UpdateReservationResponse.parse(cancelled));
+    return;
+  }
+
+  const nextCheckin = body.data.checkin ? dateOnly(body.data.checkin) : existing.checkin;
+  const nextCheckout = body.data.checkout ? dateOnly(body.data.checkout) : existing.checkout;
+  const nextGuests = body.data.guests ?? existing.guests;
+  const nextRooms = body.data.rooms ?? existing.rooms;
+  const nextSlug = body.data.accommodationSlug ?? existing.accommodationSlug;
+  const checkinDate = reservationDate(nextCheckin);
+  const checkoutDate = reservationDate(nextCheckout);
+
+  if (!datesAreValid(checkinDate, checkoutDate)) {
+    res.status(400).json({ error: "Confira o período da estadia." });
+    return;
+  }
+
+  const [roomType] = await db
+    .select()
+    .from(roomsTable)
+    .where(eq(roomsTable.slug, nextSlug));
+  if (!roomType || roomType.maxGuests * nextRooms < nextGuests) {
+    res.status(409).json({ error: "A acomodação não comporta esse número de hóspedes." });
+    return;
+  }
+
+  const [result] = await db
+    .select({ total: sql<number>`coalesce(sum(${reservationsTable.rooms}), 0)` })
+    .from(reservationsTable)
+    .where(
+      and(
+        eq(reservationsTable.status, "confirmed"),
+        lt(reservationsTable.checkin, nextCheckout),
+        gt(reservationsTable.checkout, nextCheckin),
+        eq(reservationsTable.accommodationSlug, nextSlug),
+        sql`${reservationsTable.id} <> ${params.data.id}`,
+      ),
+    );
+
+  if (roomType.totalRooms - Number(result?.total ?? 0) < nextRooms) {
+    res.status(409).json({ error: "As novas datas não estão disponíveis." });
+    return;
+  }
+
+  const selectedOffer = body.data.offerCode
+    ? offers[body.data.offerCode as keyof typeof offers]
+    : undefined;
+  if (body.data.offerCode && !selectedOffer) {
+    res.status(400).json({ error: "Oferta selecionada inválida." });
+    return;
+  }
+
+  const baseAmount = roomType.pricePerNight * nightsBetween(checkinDate, checkoutDate) * nextRooms;
+  const [updated] = await db
+    .update(reservationsTable)
+    .set({
+      status: "confirmed",
+      checkin: nextCheckin,
+      checkout: nextCheckout,
+      guests: nextGuests,
+      rooms: nextRooms,
+      accommodationSlug: nextSlug,
+      accommodationName: roomType.name,
+      totalAmount: selectedOffer
+        ? Math.round(baseAmount * (1 - selectedOffer.discountPercent / 100))
+        : baseAmount,
+      offerCode: body.data.offerCode ?? existing.offerCode,
+      offerName: selectedOffer?.name ?? existing.offerName,
+    })
+    .where(eq(reservationsTable.id, params.data.id))
+    .returning();
+
+  res.json(UpdateReservationResponse.parse(updated));
 });
 
 export default router;

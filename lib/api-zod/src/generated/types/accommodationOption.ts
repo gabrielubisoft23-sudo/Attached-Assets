@@ -11,4 +11,9 @@ export interface AccommodationOption {
   name: string;
   availableRooms: number;
   maxGuests: number;
+  description: string;
+  pricePerNight: number;
+  totalPrice: number;
+  photos: string[];
+  amenities: string[];
 }

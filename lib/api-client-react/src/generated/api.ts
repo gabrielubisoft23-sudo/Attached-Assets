@@ -25,7 +25,8 @@ import type {
   ErrorResponse,
   HealthStatus,
   Reservation,
-  ReservationInput
+  ReservationInput,
+  ReservationUpdate
 } from './api.schemas';
 
 import { customFetch } from '../custom-fetch';
@@ -145,7 +146,7 @@ export const getCheckAvailabilityUrl = (params: CheckAvailabilityParams,) => {
 
   const stringifiedParams = normalizedParams.toString();
 
-  return stringifiedParams.length > 0 ? `/api/availability?${stringifiedParams}` : `/api/availability`
+  return stringifiedParams.length > 0 ? `/api/rooms/availability?${stringifiedParams}` : `/api/rooms/availability`
 }
 
 /**
@@ -169,7 +170,7 @@ export const checkAvailability = async (params: CheckAvailabilityParams, options
 
 export const getCheckAvailabilityQueryKey = (params?: CheckAvailabilityParams,) => {
     return [
-    `/api/availability`, ...(params ? [params] : [])
+    `/api/rooms/availability`, ...(params ? [params] : [])
     ] as const;
     }
 
@@ -288,5 +289,154 @@ export const useCreateReservation = <TError = ErrorType<ErrorResponse>,
         TContext
       > => {
       return useMutation(getCreateReservationMutationOptions(options));
+    }
+
+export const getGetReservationUrl = (id: number,) => {
+
+
+
+
+  return `/api/reservations/${id}`
+}
+
+/**
+ * @summary Get a reservation
+ */
+export const getReservation = async (id: number, options?: Parameters<typeof customFetch>[1]): Promise<Reservation> => {
+
+  return customFetch<Reservation>(getGetReservationUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetReservationQueryKey = (id: number,) => {
+    return [
+    `/api/reservations/${id}`
+    ] as const;
+    }
+
+
+export const getGetReservationQueryOptions = <TData = Awaited<ReturnType<typeof getReservation>>, TError = ErrorType<ErrorResponse>>(id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getReservation>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetReservationQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getReservation>>> = ({ signal }) => getReservation(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getReservation>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetReservationQueryResult = NonNullable<Awaited<ReturnType<typeof getReservation>>>
+export type GetReservationQueryError = ErrorType<ErrorResponse>
+
+
+/**
+ * @summary Get a reservation
+ */
+
+export function useGetReservation<TData = Awaited<ReturnType<typeof getReservation>>, TError = ErrorType<ErrorResponse>>(
+ id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getReservation>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetReservationQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getUpdateReservationUrl = (id: number,) => {
+
+
+
+
+  return `/api/reservations/${id}`
+}
+
+/**
+ * @summary Cancel or update a reservation
+ */
+export const updateReservation = async (id: number,
+    reservationUpdate: ReservationUpdate, options?: Parameters<typeof customFetch>[1]): Promise<Reservation> => {
+
+  return customFetch<Reservation>(getUpdateReservationUrl(id),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(reservationUpdate)
+  }
+);}
+
+
+
+
+
+export const getUpdateReservationMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateReservation>>, TError,{id: number;data: BodyType<ReservationUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateReservation>>, TError,{id: number;data: BodyType<ReservationUpdate>}, TContext> => {
+
+const mutationKey = ['updateReservation'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateReservation>>, {id: number;data: BodyType<ReservationUpdate>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  updateReservation(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateReservationMutationResult = NonNullable<Awaited<ReturnType<typeof updateReservation>>>
+    export type UpdateReservationMutationBody = BodyType<ReservationUpdate>
+    export type UpdateReservationMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary Cancel or update a reservation
+ */
+export const useUpdateReservation = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateReservation>>, TError,{id: number;data: BodyType<ReservationUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateReservation>>,
+        TError,
+        {id: number;data: BodyType<ReservationUpdate>},
+        TContext
+      > => {
+      return useMutation(getUpdateReservationMutationOptions(options));
     }
 

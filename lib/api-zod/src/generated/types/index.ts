@@ -17,4 +17,6 @@ export * from './healthStatus';
 export * from './reservation';
 export * from './reservationInput';
 export * from './reservationStatus';
+export * from './reservationUpdate';
+export * from './reservationUpdateStatus';
 export * from './roomsParameter';

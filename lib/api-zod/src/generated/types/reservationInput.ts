@@ -19,8 +19,9 @@ export interface ReservationInput {
      * @maximum 3
      */
   rooms: number;
+  accommodationSlug: string;
   /** @nullable */
-  accommodationSlug?: string | null;
+  offerCode?: string | null;
   /** @minLength 2 */
   guestName: string;
   guestEmail: string;

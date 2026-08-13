@@ -6,10 +6,10 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export type ReservationStatus = typeof ReservationStatus[keyof typeof ReservationStatus];
+export type ReservationUpdateStatus = typeof ReservationUpdateStatus[keyof typeof ReservationUpdateStatus];
 
 
-export const ReservationStatus = {
+export const ReservationUpdateStatus = {
   confirmed: 'confirmed',
   cancelled: 'cancelled',
 } as const;
