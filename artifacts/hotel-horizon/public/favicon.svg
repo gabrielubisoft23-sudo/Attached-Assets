@@ -1,3 +1,6 @@
 <svg width="180" height="180" viewBox="0 0 180 180" fill="none" xmlns="http://www.w3.org/2000/svg">
-<rect width="180" height="180" rx="36" fill="#FF3C00"/>
+<rect width="180" height="180" rx="36" fill="#243b30"/>
+<circle cx="90" cy="90" r="58" fill="none" stroke="#f7f4ee" stroke-opacity="0.55" stroke-width="3"/>
+<text x="90" y="112" text-anchor="middle" font-family="Georgia, 'Times New Roman', serif" font-style="italic" font-size="72" fill="#f7f4ee">H</text>
+<line x1="90" y1="128" x2="90" y2="140" stroke="#f7f4ee" stroke-width="3" stroke-linecap="round"/>
 </svg>
