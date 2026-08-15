@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import {
   getCheckAvailabilityQueryKey,
@@ -11,10 +11,18 @@ import { Toaster } from '@/components/ui/toaster';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import NotFound from '@/pages/not-found';
 import { Link, Route, Switch, Router as WouterRouter, useLocation, useRoute } from 'wouter';
-import { AlertCircle, ArrowDown, ArrowLeft, ArrowRight, BedDouble, CalendarDays, Check, ChevronDown, ChevronUp, Clock3, Coffee, Compass, Globe2, Heart, Instagram, Loader2, Mail, MapPin, Menu, MessageCircle, Minus, Mountain, MoveUpRight, Phone, Plus, Quote, Send, ShieldCheck, Sparkles, Star, Utensils, Users, X } from 'lucide-react';
+import { AlertCircle, ArrowDown, ArrowLeft, ArrowRight, BedDouble, CalendarDays, Check, ChevronDown, Clock3, Coffee, Compass, CreditCard, Flower2, Globe2, Heart, Instagram, LogOut, Loader2, Mail, MapPin, Menu, MessageCircle, Mountain, MoveUpRight, Phone, Quote, QrCode, Send, Sparkles, Star, User, Users, Utensils, Wallet, X } from 'lucide-react';
+import { AuthProvider, useAuth } from '@/lib/auth';
+import { AuthModal } from '@/components/auth-modal';
+import { nightsBetween, lengthOfStayDiscountPercent, buildInstallments, applyDiscount, PIX_DISCOUNT_PERCENT, type PaymentMethod } from '@/lib/pricing';
 
 const queryClient = new QueryClient();
 const image = (name: string) => `/images/${name}.jpg`;
+
+// Número único de WhatsApp usado em todo o site (cabeçalho, rodapé, botão flutuante).
+const WHATSAPP_NUMBER = '40028922';
+const WHATSAPP_DISPLAY = '4002-8922';
+function whatsappLink(message: string) { return `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(message)}`; }
 
 type Room = {
   slug: string; name: string; eyebrow: string; description: string; longDescription: string;
@@ -46,6 +54,42 @@ const offers = [
   { title: 'Ritmo da serra', text: 'Uma pausa mais longa, com tempo para conhecer a região sem pressa.', condition: 'A partir de três noites, com ritual Horizon incluído.', image: image('view'), offerCode: 'ritmo-da-serra', discountPercent: 15 },
 ];
 
+// --- Restaurante -----------------------------------------------------------
+const restaurantHours = [
+  { label: 'Café da manhã', time: '7h às 10h30' },
+  { label: 'Almoço', time: '12h30 às 15h' },
+  { label: 'Jantar', time: '19h30 às 22h30' },
+];
+const restaurantMenu = [
+  { category: 'Entradas', items: [
+    { name: 'Pão de fermentação natural e manteiga de ervas', price: 32 },
+    { name: 'Queijos da serra com geleia de frutas vermelhas', price: 58 },
+    { name: 'Creme de abóbora com castanhas', price: 42 },
+  ] },
+  { category: 'Pratos principais', items: [
+    { name: 'Truta da Mantiqueira grelhada, ervas e legumes de estação', price: 98 },
+    { name: 'Risoto de cogumelos silvestres', price: 89 },
+    { name: 'Cordeiro braseado com purê de mandioquinha', price: 118 },
+  ] },
+  { category: 'Sobremesas', items: [
+    { name: 'Fondant de chocolate 70% com sorvete de baunilha', price: 38 },
+    { name: 'Tarte tatin de maçã da serra', price: 36 },
+  ] },
+];
+
+// --- Spa ---------------------------------------------------------------
+const spaHours = [{ label: 'Todos os dias', time: '9h às 20h' }];
+const spaTreatments = [
+  { name: 'Massagem relaxante', duration: '50 min', price: 220, description: 'Técnica de toque suave para aliviar tensões e desacelerar.' },
+  { name: 'Massagem com pedras quentes', duration: '70 min', price: 290, description: 'Calor e pressão profunda para soltar a musculatura.' },
+  { name: 'Ritual facial botânico', duration: '45 min', price: 210, description: 'Limpeza, esfoliação e hidratação com ativos da serra.' },
+  { name: 'Banho de imersão com ervas', duration: '30 min', price: 150, description: 'Um mergulho calmo antes ou depois do tratamento.' },
+];
+const spaPackages = [
+  { name: 'Pacote Horizon', text: 'Massagem relaxante + ritual facial + acesso à área de hidroterapia.', price: 480, duration: 'meio dia' },
+  { name: 'Dia de bem-estar', text: 'Três tratamentos à escolha, almoço leve e chá da tarde.', price: 690, duration: 'dia inteiro' },
+];
+
 function formatBRL(value: number) { return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value); }
 function todayISO() { return new Date().toISOString().slice(0, 10); }
 function isValidEmail(value: string) { return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value); }
@@ -66,26 +110,49 @@ function Logo({ light = false }: { light?: boolean }) {
 
 function Header() {
   const [scrolled, setScrolled] = useState(false); const [open, setOpen] = useState(false); const [, setLocation] = useLocation();
+  const [authOpen, setAuthOpen] = useState(false); const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const { user, isAuthenticated, logout } = useAuth();
   useEffect(() => { const onScroll = () => setScrolled(window.scrollY > 40); window.addEventListener('scroll', onScroll); return () => window.removeEventListener('scroll', onScroll); }, []);
   const go = (id: string) => { setOpen(false); if (window.location.pathname !== '/') { setLocation('/'); setTimeout(() => scrollToId(id), 120); } else scrollToId(id); };
-  const links = [['O hotel', 'hotel'], ['Acomodações', 'acomodacoes'], ['Experiências', 'experiencias'], ['Gastronomia', 'gastronomia'], ['Galeria', 'galeria'], ['Localização', 'localizacao']];
+  const links: [string, string][] = [['O hotel', 'hotel'], ['Acomodações', 'acomodacoes'], ['Experiências', 'experiencias'], ['Galeria', 'galeria'], ['Localização', 'localizacao']];
+  const routeLinks: [string, string][] = [['Restaurante', '/restaurante'], ['Spa', '/spa']];
   return <header className={`fixed inset-x-0 top-0 z-40 transition-all duration-500 ${scrolled || open ? 'bg-[#f7f4ee]/95 text-[#243b30] shadow-[0_1px_0_rgba(36,59,48,.12)] backdrop-blur-md' : 'bg-transparent text-[#f7f4ee]'}`} data-testid="site-header">
     <div className="mx-auto flex h-[78px] max-w-[1440px] items-center justify-between px-5 sm:px-8 lg:px-12"><Logo light={!scrolled && !open} />
-      <nav className="hidden items-center gap-6 lg:flex" aria-label="Navegação principal">{links.map(([label, id]) => <button key={id} onClick={() => go(id)} className="focus-ring text-[11px] uppercase tracking-[.14em] opacity-80 transition hover:opacity-100" data-testid={`button-nav-${id}`}>{label}</button>)}</nav>
-      <div className="hidden items-center gap-5 lg:flex"><span className="text-[10px] tracking-[.16em] opacity-65">PT <span className="mx-1 opacity-40">/</span> EN</span><Link href="/reservar" className="focus-ring bg-[#b89b5e] px-5 py-3 text-[10px] font-semibold uppercase tracking-[.17em] text-[#1d2b25] transition hover:bg-[#cfb777]" data-testid="link-header-reserve">Reservar agora</Link></div>
+      <nav className="hidden items-center gap-6 lg:flex" aria-label="Navegação principal">
+        {links.map(([label, id]) => <button key={id} onClick={() => go(id)} className="focus-ring text-[11px] uppercase tracking-[.14em] opacity-80 transition hover:opacity-100" data-testid={`button-nav-${id}`}>{label}</button>)}
+        {routeLinks.map(([label, href]) => <Link key={href} href={href} onClick={() => setOpen(false)} className="focus-ring text-[11px] uppercase tracking-[.14em] opacity-80 transition hover:opacity-100" data-testid={`link-nav-${label.toLowerCase()}`}>{label}</Link>)}
+      </nav>
+      <div className="hidden items-center gap-5 lg:flex">
+        <span className="text-[10px] tracking-[.16em] opacity-65">PT <span className="mx-1 opacity-40">/</span> EN</span>
+        {isAuthenticated ? <div className="relative">
+          <button onClick={() => setUserMenuOpen(v => !v)} className="focus-ring flex items-center gap-2 text-[10px] uppercase tracking-[.16em] opacity-90" data-testid="button-user-menu"><User size={15} /> {user?.name.split(' ')[0]}<ChevronDown size={13} /></button>
+          {userMenuOpen && <div className="absolute right-0 top-full mt-2 min-w-[160px] border border-[#243b30]/15 bg-[#f7f4ee] py-2 text-[#243b30] shadow-lg">
+            <button onClick={() => { logout(); setUserMenuOpen(false); }} className="focus-ring flex w-full items-center gap-2 px-4 py-2.5 text-left text-[11px] uppercase tracking-[.12em] hover:bg-[#e8e0d2]" data-testid="button-logout"><LogOut size={14} /> Sair</button>
+          </div>}
+        </div> : <button onClick={() => setAuthOpen(true)} className="focus-ring flex items-center gap-2 text-[10px] uppercase tracking-[.16em] opacity-90 transition hover:opacity-100" data-testid="button-open-auth"><User size={15} /> Entrar</button>}
+        <Link href="/reservar" className="focus-ring bg-[#b89b5e] px-5 py-3 text-[10px] font-semibold uppercase tracking-[.17em] text-[#1d2b25] transition hover:bg-[#cfb777]" data-testid="link-header-reserve">Reservar agora</Link>
+      </div>
       <div className="flex items-center gap-3 lg:hidden"><Link href="/reservar" className="focus-ring bg-[#b89b5e] px-3 py-2.5 text-[9px] font-semibold uppercase tracking-[.12em] text-[#1d2b25]" data-testid="link-mobile-reserve">Reservar</Link><button onClick={() => setOpen(!open)} aria-label={open ? 'Fechar menu' : 'Abrir menu'} className="focus-ring p-2" data-testid="button-mobile-menu">{open ? <X size={21} /> : <Menu size={22} />}</button></div>
     </div>
-    <div className={`lg:hidden overflow-hidden transition-all duration-500 ${open ? 'max-h-[calc(100dvh-78px)] border-t border-[#243b30]/10' : 'max-h-0'}`}><nav className="flex min-h-[calc(100dvh-79px)] flex-col justify-center gap-7 bg-[#f7f4ee] px-7 py-10" aria-label="Menu mobile">{links.map(([label, id], i) => <button key={id} onClick={() => go(id)} className="reveal flex items-center justify-between border-b border-[#243b30]/10 pb-4 text-left font-display text-3xl text-[#243b30]" style={{ animationDelay: `${i * 60}ms` }} data-testid={`button-mobile-nav-${id}`}>{label}<ArrowRight size={18} strokeWidth={1.2} /></button>)}<Link href="/reservar" onClick={() => setOpen(false)} className="mt-3 flex items-center justify-between bg-[#243b30] px-5 py-4 text-[11px] uppercase tracking-[.16em] text-[#f7f4ee]" data-testid="link-mobile-menu-reserve">Planeje sua estadia <MoveUpRight size={16} /></Link></nav></div>
+    <div className={`lg:hidden overflow-hidden transition-all duration-500 ${open ? 'max-h-[calc(100dvh-78px)] overflow-y-auto border-t border-[#243b30]/10' : 'max-h-0'}`}><nav className="flex min-h-[calc(100dvh-79px)] flex-col justify-center gap-6 bg-[#f7f4ee] px-7 py-10" aria-label="Menu mobile">
+      {links.map(([label, id], i) => <button key={id} onClick={() => go(id)} className="reveal flex items-center justify-between border-b border-[#243b30]/10 pb-4 text-left font-display text-3xl text-[#243b30]" style={{ animationDelay: `${i * 60}ms` }} data-testid={`button-mobile-nav-${id}`}>{label}<ArrowRight size={18} strokeWidth={1.2} /></button>)}
+      {routeLinks.map(([label, href], i) => <Link key={href} href={href} onClick={() => setOpen(false)} className="reveal flex items-center justify-between border-b border-[#243b30]/10 pb-4 text-left font-display text-3xl text-[#243b30]" style={{ animationDelay: `${(links.length + i) * 60}ms` }} data-testid={`link-mobile-nav-${label.toLowerCase()}`}>{label}<ArrowRight size={18} strokeWidth={1.2} /></Link>)}
+      {isAuthenticated ? <button onClick={() => { logout(); setOpen(false); }} className="flex items-center justify-between border-b border-[#243b30]/10 pb-4 text-left font-display text-3xl text-[#243b30]" data-testid="button-mobile-logout">Sair ({user?.name.split(' ')[0]})<LogOut size={20} strokeWidth={1.2} /></button>
+        : <button onClick={() => { setAuthOpen(true); setOpen(false); }} className="flex items-center justify-between border-b border-[#243b30]/10 pb-4 text-left font-display text-3xl text-[#243b30]" data-testid="button-mobile-open-auth">Entrar / Cadastrar<User size={20} strokeWidth={1.2} /></button>}
+      <Link href="/reservar" onClick={() => setOpen(false)} className="mt-3 flex items-center justify-between bg-[#243b30] px-5 py-4 text-[11px] uppercase tracking-[.16em] text-[#f7f4ee]" data-testid="link-mobile-menu-reserve">Planeje sua estadia <MoveUpRight size={16} /></Link>
+    </nav></div>
+    {authOpen && <AuthModal onClose={() => setAuthOpen(false)} />}
   </header>;
 }
 
 function BookingWidget({ compact = false }: { compact?: boolean }) {
-  const [, setLocation] = useLocation(); const [checkin, setCheckin] = useState(''); const [checkout, setCheckout] = useState(''); const [guests, setGuests] = useState('2'); const [roomsCount, setRoomsCount] = useState('1'); const [promo, setPromo] = useState('');
-  const submit = (e: React.FormEvent) => { e.preventDefault(); const params = new URLSearchParams({ checkin, checkout, guests, rooms: roomsCount, promo }); setLocation(`/reservar?${params.toString()}`); };
-  return <form onSubmit={submit} className={`grid gap-px bg-[#243b30]/15 ${compact ? 'grid-cols-2' : 'grid-cols-2 md:grid-cols-[1.15fr_1.15fr_.8fr_.7fr_1fr_auto]'}`} data-testid="form-booking">
+  const [, setLocation] = useLocation(); const [checkin, setCheckin] = useState(''); const [checkout, setCheckout] = useState(''); const [adults, setAdults] = useState('2'); const [children, setChildren] = useState('0'); const [roomsCount, setRoomsCount] = useState('1'); const [promo, setPromo] = useState('');
+  const submit = (e: React.FormEvent) => { e.preventDefault(); const totalGuests = Math.min(Number(adults) + Number(children), 6); const params = new URLSearchParams({ checkin, checkout, guests: String(totalGuests), adults, children, rooms: roomsCount, promo }); setLocation(`/reservar?${params.toString()}`); };
+  return <form onSubmit={submit} className={`grid gap-px bg-[#243b30]/15 ${compact ? 'grid-cols-2' : 'grid-cols-2 md:grid-cols-[1.1fr_1.1fr_.65fr_.65fr_.6fr_1fr_auto]'}`} data-testid="form-booking">
     <label className="flex min-h-[69px] flex-col justify-center bg-[#f7f4ee] px-4 py-3 text-[#243b30]"><span className="mb-1 flex items-center gap-2 text-[9px] font-semibold uppercase tracking-[.16em] text-[#706e67]"><CalendarDays size={12} /> Check-in</span><input required type="date" value={checkin} onChange={e => setCheckin(e.target.value)} className="focus-ring bg-transparent text-sm outline-none" data-testid="input-checkin" /></label>
     <label className="flex min-h-[69px] flex-col justify-center bg-[#f7f4ee] px-4 py-3 text-[#243b30]"><span className="mb-1 flex items-center gap-2 text-[9px] font-semibold uppercase tracking-[.16em] text-[#706e67]"><CalendarDays size={12} /> Check-out</span><input required type="date" value={checkout} onChange={e => setCheckout(e.target.value)} className="focus-ring bg-transparent text-sm outline-none" data-testid="input-checkout" /></label>
-    <label className="flex min-h-[69px] flex-col justify-center bg-[#f7f4ee] px-4 py-3 text-[#243b30]"><span className="mb-1 flex items-center gap-2 text-[9px] font-semibold uppercase tracking-[.16em] text-[#706e67]"><Users size={12} /> Hóspedes</span><select value={guests} onChange={e => setGuests(e.target.value)} className="focus-ring bg-transparent text-sm outline-none" data-testid="select-guests">{[1,2,3,4,5,6].map(n => <option key={n} value={n}>{n} {n === 1 ? 'hóspede' : 'hóspedes'}</option>)}</select></label>
+    <label className="flex min-h-[69px] flex-col justify-center bg-[#f7f4ee] px-4 py-3 text-[#243b30]"><span className="mb-1 flex items-center gap-2 text-[9px] font-semibold uppercase tracking-[.16em] text-[#706e67]"><Users size={12} /> Adultos</span><select value={adults} onChange={e => setAdults(e.target.value)} className="focus-ring bg-transparent text-sm outline-none" data-testid="select-adults">{[1,2,3,4,5,6].map(n => <option key={n} value={n}>{n}</option>)}</select></label>
+    <label className="flex min-h-[69px] flex-col justify-center bg-[#f7f4ee] px-4 py-3 text-[#243b30]"><span className="mb-1 flex items-center gap-2 text-[9px] font-semibold uppercase tracking-[.16em] text-[#706e67]"><Users size={12} /> Crianças</span><select value={children} onChange={e => setChildren(e.target.value)} className="focus-ring bg-transparent text-sm outline-none" data-testid="select-children">{[0,1,2,3,4].map(n => <option key={n} value={n}>{n}</option>)}</select></label>
     <label className="flex min-h-[69px] flex-col justify-center bg-[#f7f4ee] px-4 py-3 text-[#243b30]"><span className="mb-1 flex items-center gap-2 text-[9px] font-semibold uppercase tracking-[.16em] text-[#706e67]"><BedDouble size={12} /> Quartos</span><select value={roomsCount} onChange={e => setRoomsCount(e.target.value)} className="focus-ring bg-transparent text-sm outline-none" data-testid="select-rooms">{[1,2,3].map(n => <option key={n} value={n}>{n}</option>)}</select></label>
     {!compact && <label className="col-span-2 flex min-h-[69px] flex-col justify-center bg-[#f7f4ee] px-4 py-3 text-[#243b30] md:col-span-1"><span className="mb-1 text-[9px] font-semibold uppercase tracking-[.16em] text-[#706e67]">Código promocional</span><input value={promo} onChange={e => setPromo(e.target.value)} placeholder="Opcional" className="focus-ring bg-transparent text-sm outline-none placeholder:text-[#706e67]/60" data-testid="input-promo" /></label>}
     <button type="submit" className={`${compact ? 'col-span-2' : 'col-span-2 md:col-span-1'} min-h-[69px] bg-[#b89b5e] px-5 text-[10px] font-semibold uppercase tracking-[.16em] text-[#1d2b25] transition hover:bg-[#cfb777] focus:outline-none focus:ring-2 focus:ring-[#b89b5e] focus:ring-offset-2`} data-testid="button-check-availability">Ver disponibilidade</button>
@@ -122,7 +189,87 @@ function Experiences() {
 }
 
 function GastronomyWellness() {
-  return <><section id="gastronomia" className="bg-[#f7f4ee] px-5 py-24 sm:px-8 sm:py-32 lg:px-12" data-testid="section-gastronomy"><div className="mx-auto grid max-w-[1280px] items-center gap-12 lg:grid-cols-[1.15fr_.85fr] lg:gap-24"><div className="relative grid grid-cols-5 gap-3"><div className="img-zoom col-span-3 aspect-[.72] overflow-hidden"><img src={image('dining')} alt="Mesa posta no restaurante do Hotel Horizon" loading="lazy" className="h-full w-full object-cover" /></div><div className="img-zoom col-span-2 mt-16 aspect-[.72] overflow-hidden"><img src={image('suite')} alt="Detalhe de ingredientes e louças do restaurante" loading="lazy" className="h-full w-full object-cover" /></div></div><div><SectionTitle eyebrow="Gastronomia" title={<>Sabores que fazem parte <em>da experiência.</em></>} copy="A cozinha Horizon celebra a serra sem caricaturas. Produtos locais, fogo baixo e receitas que chegam à mesa com delicadeza." /><div className="mt-9 grid grid-cols-2 gap-y-3 border-y border-[#243b30]/15 py-5 text-sm text-[#706e67]"><span className="flex items-center gap-2"><Coffee size={15} className="text-[#b89b5e]" /> Café da manhã</span><span className="flex items-center gap-2"><Utensils size={15} className="text-[#b89b5e]" /> Restaurante</span><span className="flex items-center gap-2"><Sparkles size={15} className="text-[#b89b5e]" /> Bar da casa</span><span className="flex items-center gap-2"><Clock3 size={15} className="text-[#b89b5e]" /> Room service</span></div><button onClick={() => scrollToId('gastronomia')} className="line-link focus-ring mt-8 inline-flex items-center gap-3 pb-1 text-[10px] font-semibold uppercase tracking-[.18em] text-[#243b30]" data-testid="button-gastronomy">Conheça nossa gastronomia <ArrowRight size={15} /></button></div></div></section><section id="spa-bem-estar" className="bg-[#e8e0d2] px-5 py-24 sm:px-8 lg:px-12" data-testid="section-wellness"><div className="mx-auto grid max-w-[1280px] items-center gap-12 lg:grid-cols-[.75fr_1.25fr] lg:gap-24"><div className="order-2 lg:order-1"><SectionTitle eyebrow="Spa & bem-estar" title={<>Seu momento<br /><em>de pausa.</em></>} copy="Permita-se desacelerar, respirar e aproveitar cada instante. O corpo entende quando encontra espaço." /><button onClick={() => scrollToId('spa-bem-estar')} className="line-link focus-ring mt-8 inline-flex items-center gap-3 pb-1 text-[10px] font-semibold uppercase tracking-[.18em] text-[#243b30]" data-testid="button-wellness">Conhecer o Spa <ArrowRight size={15} /></button></div><div className="img-zoom order-1 aspect-[1.5] overflow-hidden lg:order-2"><img src={image('wellness')} alt="Espaço de bem-estar com piscina de pedra" loading="lazy" className="h-full w-full object-cover" /></div></div></section></>;
+  return <><section id="gastronomia" className="bg-[#f7f4ee] px-5 py-24 sm:px-8 sm:py-32 lg:px-12" data-testid="section-gastronomy"><div className="mx-auto grid max-w-[1280px] items-center gap-12 lg:grid-cols-[1.15fr_.85fr] lg:gap-24"><div className="relative grid grid-cols-5 gap-3"><div className="img-zoom col-span-3 aspect-[.72] overflow-hidden"><img src={image('dining')} alt="Mesa posta no restaurante do Hotel Horizon" loading="lazy" className="h-full w-full object-cover" /></div><div className="img-zoom col-span-2 mt-16 aspect-[.72] overflow-hidden"><img src={image('suite')} alt="Detalhe de ingredientes e louças do restaurante" loading="lazy" className="h-full w-full object-cover" /></div></div><div><SectionTitle eyebrow="Gastronomia" title={<>Sabores que fazem parte <em>da experiência.</em></>} copy="A cozinha Horizon celebra a serra sem caricaturas. Produtos locais, fogo baixo e receitas que chegam à mesa com delicadeza." /><div className="mt-9 grid grid-cols-2 gap-y-3 border-y border-[#243b30]/15 py-5 text-sm text-[#706e67]"><span className="flex items-center gap-2"><Coffee size={15} className="text-[#b89b5e]" /> Café da manhã</span><span className="flex items-center gap-2"><Utensils size={15} className="text-[#b89b5e]" /> Restaurante</span><span className="flex items-center gap-2"><Sparkles size={15} className="text-[#b89b5e]" /> Bar da casa</span><span className="flex items-center gap-2"><Clock3 size={15} className="text-[#b89b5e]" /> Room service</span></div><Link href="/restaurante" className="line-link focus-ring mt-8 inline-flex items-center gap-3 pb-1 text-[10px] font-semibold uppercase tracking-[.18em] text-[#243b30]" data-testid="link-gastronomy">Conheça nosso restaurante <ArrowRight size={15} /></Link></div></div></section><section id="spa-bem-estar" className="bg-[#e8e0d2] px-5 py-24 sm:px-8 lg:px-12" data-testid="section-wellness"><div className="mx-auto grid max-w-[1280px] items-center gap-12 lg:grid-cols-[.75fr_1.25fr] lg:gap-24"><div className="order-2 lg:order-1"><SectionTitle eyebrow="Spa & bem-estar" title={<>Seu momento<br /><em>de pausa.</em></>} copy="Permita-se desacelerar, respirar e aproveitar cada instante. O corpo entende quando encontra espaço." /><Link href="/spa" className="line-link focus-ring mt-8 inline-flex items-center gap-3 pb-1 text-[10px] font-semibold uppercase tracking-[.18em] text-[#243b30]" data-testid="link-wellness">Conhecer o Spa <ArrowRight size={15} /></Link></div><div className="img-zoom order-1 aspect-[1.5] overflow-hidden lg:order-2"><img src={image('wellness')} alt="Espaço de bem-estar com piscina de pedra" loading="lazy" className="h-full w-full object-cover" /></div></div></section></>;
+}
+
+function RestaurantTableForm() {
+  const [date, setDate] = useState(''); const [time, setTime] = useState(''); const [partySize, setPartySize] = useState('2'); const [sent, setSent] = useState(false);
+  const submit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const message = `Olá! Gostaria de reservar uma mesa no restaurante do Hotel Horizon para ${partySize} pessoa(s), em ${date || 'data a combinar'} às ${time || 'horário a combinar'}.`;
+    window.open(whatsappLink(message), '_blank', 'noreferrer');
+    setSent(true);
+  };
+  return <form onSubmit={submit} className="grid gap-4 border border-[#243b30]/15 bg-[#e8e0d2] p-6 sm:p-8" data-testid="form-restaurant-table">
+    <h3 className="font-display text-2xl text-[#243b30]">Reservar uma mesa</h3>
+    <div className="grid grid-cols-2 gap-3">
+      <label className="flex flex-col gap-1"><span className="text-[9px] font-semibold uppercase tracking-[.16em] text-[#706e67]">Data</span><input required type="date" min={todayISO()} value={date} onChange={e => setDate(e.target.value)} className="focus-ring border border-[#243b30]/20 bg-transparent px-3 py-3 text-sm outline-none" data-testid="input-table-date" /></label>
+      <label className="flex flex-col gap-1"><span className="text-[9px] font-semibold uppercase tracking-[.16em] text-[#706e67]">Horário</span><input required type="time" value={time} onChange={e => setTime(e.target.value)} className="focus-ring border border-[#243b30]/20 bg-transparent px-3 py-3 text-sm outline-none" data-testid="input-table-time" /></label>
+    </div>
+    <label className="flex flex-col gap-1"><span className="text-[9px] font-semibold uppercase tracking-[.16em] text-[#706e67]">Pessoas</span><select value={partySize} onChange={e => setPartySize(e.target.value)} className="focus-ring border border-[#243b30]/20 bg-transparent px-3 py-3 text-sm outline-none" data-testid="select-table-party">{[1,2,3,4,5,6,7,8].map(n => <option key={n} value={n}>{n} {n === 1 ? 'pessoa' : 'pessoas'}</option>)}</select></label>
+    <button type="submit" className="focus-ring flex items-center justify-center gap-2 bg-[#243b30] px-5 py-4 text-[10px] font-semibold uppercase tracking-[.16em] text-[#f7f4ee] transition hover:bg-[#345244]" data-testid="button-table-submit"><MessageCircle size={15} /> Reservar mesa pelo WhatsApp</button>
+    {sent && <p className="flex items-center gap-2 text-xs text-[#4c7a5f]" data-testid="text-table-sent"><Check size={14} /> Abrimos o WhatsApp com sua solicitação. Nossa equipe confirma em instantes.</p>}
+  </form>;
+}
+
+function Restaurant() {
+  return <div className="noise min-h-[100dvh] bg-[#f7f4ee]"><Header /><main className="pt-[78px]">
+    <section className="relative flex min-h-[380px] items-end overflow-hidden px-5 py-16 text-[#f7f4ee] sm:px-8 lg:px-12" data-testid="section-restaurant-hero">
+      <img src={image('dining')} alt="Mesa posta no restaurante do Hotel Horizon" loading="lazy" className="absolute inset-0 h-full w-full object-cover" /><div className="absolute inset-0 bg-[#1d2b25]/60" />
+      <div className="relative z-10 mx-auto w-full max-w-[1280px]"><Eyebrow light>Restaurante</Eyebrow><h1 className="font-display text-5xl leading-[1.02] sm:text-7xl">Mesa da serra</h1><p className="mt-4 max-w-lg text-sm leading-6 text-[#f7f4ee]/75">Ingredientes de pequenos produtores locais, fogo baixo e um menu que acompanha as estações do ano.</p></div>
+    </section>
+    <section className="mx-auto max-w-[1280px] px-5 py-16 sm:px-8 sm:py-24 lg:px-12"><div className="grid gap-14 lg:grid-cols-[1.3fr_.9fr] lg:gap-20">
+      <div>
+        <SectionTitle eyebrow="Cardápio" title={<>Sabores que contam<br /><em>uma história.</em></>} copy="Um menu enxuto, que muda com as estações e prioriza produtores da Serra da Mantiqueira." />
+        <div className="mt-10 space-y-10">{restaurantMenu.map(section => <div key={section.category}><h3 className="font-display text-2xl text-[#243b30]">{section.category}</h3><div className="mt-4 space-y-3">{section.items.map(item => <div key={item.name} className="flex items-baseline justify-between gap-4 border-b border-[#243b30]/10 pb-3"><span className="text-sm text-[#706e67]">{item.name}</span><span className="shrink-0 text-sm font-medium text-[#243b30]">{formatBRL(item.price)}</span></div>)}</div></div>)}</div>
+      </div>
+      <aside className="space-y-8 lg:sticky lg:top-28 lg:self-start">
+        <div className="border border-[#243b30]/15 bg-[#e8e0d2] p-6 sm:p-8"><h3 className="flex items-center gap-2 font-display text-2xl text-[#243b30]"><Clock3 size={19} /> Horários</h3><div className="mt-4 space-y-2 text-sm text-[#706e67]">{restaurantHours.map(h => <p key={h.label} className="flex justify-between"><span>{h.label}</span><span className="font-medium text-[#243b30]">{h.time}</span></p>)}</div></div>
+        <RestaurantTableForm />
+      </aside>
+    </div></section>
+  </main><Footer /></div>;
+}
+
+function SpaBookingForm() {
+  const [treatment, setTreatment] = useState(spaTreatments[0].name); const [date, setDate] = useState(''); const [time, setTime] = useState(''); const [sent, setSent] = useState(false);
+  const submit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const message = `Olá! Gostaria de agendar o tratamento "${treatment}" no Spa do Hotel Horizon, em ${date || 'data a combinar'} às ${time || 'horário a combinar'}.`;
+    window.open(whatsappLink(message), '_blank', 'noreferrer');
+    setSent(true);
+  };
+  return <form onSubmit={submit} className="grid gap-4 border border-[#243b30]/15 bg-[#f7f4ee] p-6 sm:p-8" data-testid="form-spa-booking">
+    <h3 className="font-display text-2xl text-[#243b30]">Agendar uma sessão</h3>
+    <label className="flex flex-col gap-1"><span className="text-[9px] font-semibold uppercase tracking-[.16em] text-[#706e67]">Tratamento</span><select value={treatment} onChange={e => setTreatment(e.target.value)} className="focus-ring border border-[#243b30]/20 bg-transparent px-3 py-3 text-sm outline-none" data-testid="select-spa-treatment">{spaTreatments.map(t => <option key={t.name} value={t.name}>{t.name}</option>)}</select></label>
+    <div className="grid grid-cols-2 gap-3">
+      <label className="flex flex-col gap-1"><span className="text-[9px] font-semibold uppercase tracking-[.16em] text-[#706e67]">Data</span><input required type="date" min={todayISO()} value={date} onChange={e => setDate(e.target.value)} className="focus-ring border border-[#243b30]/20 bg-transparent px-3 py-3 text-sm outline-none" data-testid="input-spa-date" /></label>
+      <label className="flex flex-col gap-1"><span className="text-[9px] font-semibold uppercase tracking-[.16em] text-[#706e67]">Horário</span><input required type="time" value={time} onChange={e => setTime(e.target.value)} className="focus-ring border border-[#243b30]/20 bg-transparent px-3 py-3 text-sm outline-none" data-testid="input-spa-time" /></label>
+    </div>
+    <button type="submit" className="focus-ring flex items-center justify-center gap-2 bg-[#243b30] px-5 py-4 text-[10px] font-semibold uppercase tracking-[.16em] text-[#f7f4ee] transition hover:bg-[#345244]" data-testid="button-spa-submit"><MessageCircle size={15} /> Agendar pelo WhatsApp</button>
+    {sent && <p className="flex items-center gap-2 text-xs text-[#4c7a5f]" data-testid="text-spa-sent"><Check size={14} /> Abrimos o WhatsApp com sua solicitação. Nossa equipe confirma em instantes.</p>}
+  </form>;
+}
+
+function Spa() {
+  return <div className="noise min-h-[100dvh] bg-[#f7f4ee]"><Header /><main className="pt-[78px]">
+    <section className="relative flex min-h-[380px] items-end overflow-hidden px-5 py-16 text-[#f7f4ee] sm:px-8 lg:px-12" data-testid="section-spa-hero">
+      <img src={image('wellness')} alt="Espaço de bem-estar do Hotel Horizon" loading="lazy" className="absolute inset-0 h-full w-full object-cover" /><div className="absolute inset-0 bg-[#1d2b25]/60" />
+      <div className="relative z-10 mx-auto w-full max-w-[1280px]"><Eyebrow light>Spa & bem-estar</Eyebrow><h1 className="font-display text-5xl leading-[1.02] sm:text-7xl">Seu momento de pausa</h1><p className="mt-4 max-w-lg text-sm leading-6 text-[#f7f4ee]/75">Tratamentos pensados para desacelerar o corpo e a mente, com produtos naturais da serra.</p></div>
+    </section>
+    <section className="mx-auto max-w-[1280px] px-5 py-16 sm:px-8 sm:py-24 lg:px-12"><div className="grid gap-14 lg:grid-cols-[1.3fr_.9fr] lg:gap-20">
+      <div>
+        <SectionTitle eyebrow="Tratamentos" title={<>Cuidado que acompanha<br /><em>o seu ritmo.</em></>} copy="Escolha uma sessão avulsa ou um pacote completo de bem-estar." />
+        <div className="mt-10 grid gap-4 sm:grid-cols-2">{spaTreatments.map(t => <div key={t.name} className="border border-[#243b30]/15 p-5"><div className="flex items-start justify-between gap-3"><h3 className="font-display text-xl text-[#243b30]">{t.name}</h3><Flower2 size={18} className="shrink-0 text-[#9a7d42]" /></div><p className="mt-2 text-sm leading-6 text-[#706e67]">{t.description}</p><p className="mt-4 flex items-center justify-between text-[11px] uppercase tracking-[.1em] text-[#706e67]"><span>{t.duration}</span><span className="font-display text-lg normal-case tracking-normal text-[#243b30]">{formatBRL(t.price)}</span></p></div>)}</div>
+        <h3 className="mt-12 font-display text-2xl text-[#243b30]">Pacotes de bem-estar</h3>
+        <div className="mt-4 grid gap-4 sm:grid-cols-2">{spaPackages.map(p => <div key={p.name} className="border border-[#b89b5e]/50 bg-[#e8e0d2] p-5"><h4 className="font-display text-xl text-[#243b30]">{p.name}</h4><p className="mt-2 text-sm leading-6 text-[#706e67]">{p.text}</p><p className="mt-4 flex items-center justify-between text-[11px] uppercase tracking-[.1em] text-[#706e67]"><span>{p.duration}</span><span className="font-display text-lg normal-case tracking-normal text-[#243b30]">{formatBRL(p.price)}</span></p></div>)}</div>
+      </div>
+      <aside className="space-y-8 lg:sticky lg:top-28 lg:self-start">
+        <div className="border border-[#243b30]/15 bg-[#e8e0d2] p-6 sm:p-8"><h3 className="flex items-center gap-2 font-display text-2xl text-[#243b30]"><Clock3 size={19} /> Horários</h3><div className="mt-4 space-y-2 text-sm text-[#706e67]">{spaHours.map(h => <p key={h.label} className="flex justify-between"><span>{h.label}</span><span className="font-medium text-[#243b30]">{h.time}</span></p>)}</div></div>
+        <SpaBookingForm />
+      </aside>
+    </div></section>
+  </main><Footer /></div>;
 }
 
 function Gallery({ onOpen }: { onOpen: (index: number) => void }) {
@@ -135,7 +282,7 @@ function Reviews() {
 }
 
 function LocationSection() {
-  return <section id="localizacao" className="bg-[#f7f4ee] px-5 py-24 sm:px-8 sm:py-32 lg:px-12" data-testid="section-location"><div className="mx-auto grid max-w-[1280px] gap-12 lg:grid-cols-[.8fr_1.2fr] lg:gap-24"><div><SectionTitle eyebrow="Localização" title={<>Encontre o seu<br /><em>caminho até nós.</em></>} copy="No alto da Serra da Mantiqueira, perto o bastante para chegar sem esforço — e longe o suficiente para ouvir o silêncio." /><div className="mt-10 space-y-5 border-t border-[#243b30]/15 pt-6 text-sm text-[#706e67]"><p className="flex gap-3"><MapPin size={17} className="shrink-0 text-[#b89b5e]" /> Estrada do Horto, 4400, Alto da Boa Vista,<br />Campos do Jordão — SP</p><p className="flex items-center gap-3"><Phone size={16} className="text-[#b89b5e]" /> +55 12 3663 2040</p><p className="flex items-center gap-3"><Mail size={16} className="text-[#b89b5e]" /> cuidado@hotelhorizon.com.br</p></div><a href="https://www.google.com/maps/search/Campos+do+Jordao" target="_blank" rel="noreferrer" className="focus-ring line-link mt-8 inline-flex items-center gap-3 pb-1 text-[10px] font-semibold uppercase tracking-[.18em] text-[#243b30]" data-testid="link-directions">Como chegar <MoveUpRight size={14} /></a></div><div className="relative min-h-[390px] overflow-hidden bg-[#243b30]"><img src={image('nature')} alt="Estrada entre a natureza na Serra da Mantiqueira" loading="lazy" className="absolute inset-0 h-full w-full object-cover opacity-70" /><div className="absolute inset-0 bg-[#243b30]/30" /><div className="absolute bottom-6 left-6 right-6 flex items-end justify-between text-[#f7f4ee]"><div><p className="text-[10px] uppercase tracking-[.18em] text-[#d7c59b]">Estamos aqui</p><p className="mt-2 font-display text-2xl">Campos do Jordão</p></div><span className="flex h-10 w-10 items-center justify-center rounded-full border border-[#f7f4ee]/50"><MapPin size={17} /></span></div></div></div></section>;
+  return <section id="localizacao" className="bg-[#f7f4ee] px-5 py-24 sm:px-8 sm:py-32 lg:px-12" data-testid="section-location"><div className="mx-auto grid max-w-[1280px] gap-12 lg:grid-cols-[.8fr_1.2fr] lg:gap-24"><div><SectionTitle eyebrow="Localização" title={<>Encontre o seu<br /><em>caminho até nós.</em></>} copy="No alto da Serra da Mantiqueira, perto o bastante para chegar sem esforço — e longe o suficiente para ouvir o silêncio." /><div className="mt-10 space-y-5 border-t border-[#243b30]/15 pt-6 text-sm text-[#706e67]"><p className="flex gap-3"><MapPin size={17} className="shrink-0 text-[#b89b5e]" /> Estrada do Horto, 4400, Alto da Boa Vista,<br />Campos do Jordão — SP</p><p className="flex items-center gap-3"><Phone size={16} className="text-[#b89b5e]" /> {WHATSAPP_DISPLAY} (WhatsApp)</p><p className="flex items-center gap-3"><Mail size={16} className="text-[#b89b5e]" /> cuidado@hotelhorizon.com.br</p></div><a href="https://www.google.com/maps/search/Campos+do+Jordao" target="_blank" rel="noreferrer" className="focus-ring line-link mt-8 inline-flex items-center gap-3 pb-1 text-[10px] font-semibold uppercase tracking-[.18em] text-[#243b30]" data-testid="link-directions">Como chegar <MoveUpRight size={14} /></a></div><div className="relative min-h-[390px] overflow-hidden bg-[#243b30]"><img src={image('nature')} alt="Estrada entre a natureza na Serra da Mantiqueira" loading="lazy" className="absolute inset-0 h-full w-full object-cover opacity-70" /><div className="absolute inset-0 bg-[#243b30]/30" /><div className="absolute bottom-6 left-6 right-6 flex items-end justify-between text-[#f7f4ee]"><div><p className="text-[10px] uppercase tracking-[.18em] text-[#d7c59b]">Estamos aqui</p><p className="mt-2 font-display text-2xl">Campos do Jordão</p></div><span className="flex h-10 w-10 items-center justify-center rounded-full border border-[#f7f4ee]/50"><MapPin size={17} /></span></div></div></div></section>;
 }
 
 function Offers() {
@@ -144,7 +291,7 @@ function Offers() {
 
 function FinalCta() { return <section className="relative flex min-h-[490px] items-center overflow-hidden px-5 py-24 text-center text-[#f7f4ee] sm:px-8 lg:px-12" data-testid="section-final-cta"><img src={image('hero')} alt="" loading="lazy" className="absolute inset-0 h-full w-full object-cover object-bottom" /><div className="absolute inset-0 bg-[#1d2b25]/70" /><div className="relative z-10 mx-auto max-w-2xl"><Eyebrow light>Quando você estiver pronto</Eyebrow><h2 className="font-display text-5xl leading-[.98] sm:text-7xl">Seu próximo momento<br /><em>começa aqui.</em></h2><p className="mx-auto mt-6 max-w-md text-sm leading-6 text-[#f7f4ee]/70">Reserve sua estadia e descubra a pausa que a serra guardou para você.</p><Link href="/reservar" className="focus-ring mt-8 inline-flex bg-[#b89b5e] px-7 py-4 text-[10px] font-semibold uppercase tracking-[.18em] text-[#1d2b25] transition hover:bg-[#d1b978]" data-testid="link-final-reserve">Reservar agora <MoveUpRight className="ml-3" size={15} /></Link></div></section>; }
 
-function Footer() { const [email, setEmail] = useState(''); const [sent, setSent] = useState(false); return <footer className="bg-[#1d2b25] px-5 pb-8 pt-16 text-[#f7f4ee] sm:px-8 lg:px-12" data-testid="site-footer"><div className="mx-auto max-w-[1280px]"><div className="grid gap-12 border-b border-[#f7f4ee]/15 pb-14 md:grid-cols-[1.3fr_1fr_1fr_1.5fr]"><div><Logo light /><p className="mt-6 max-w-xs text-sm leading-6 text-[#f7f4ee]/55">Uma casa para viver a serra com presença, beleza e tempo.</p></div><div><p className="mb-5 text-[10px] font-semibold uppercase tracking-[.2em] text-[#d7c59b]">Hotel</p><div className="flex flex-col items-start gap-3 text-sm text-[#f7f4ee]/65"><button onClick={() => scrollToId('hotel')} data-testid="button-footer-hotel">O hotel</button><button onClick={() => scrollToId('acomodacoes')} data-testid="button-footer-rooms">Acomodações</button><button onClick={() => scrollToId('experiencias')} data-testid="button-footer-experiences">Experiências</button><button onClick={() => scrollToId('galeria')} data-testid="button-footer-gallery">Galeria</button></div></div><div><p className="mb-5 text-[10px] font-semibold uppercase tracking-[.2em] text-[#d7c59b]">Informações</p><div className="flex flex-col items-start gap-3 text-sm text-[#f7f4ee]/65"><button onClick={() => scrollToId('localizacao')} data-testid="button-footer-location">Localização</button><a href="mailto:cuidado@hotelhorizon.com.br" data-testid="link-footer-email">Contato</a><span>FAQ</span><Link href="/politica-de-privacidade" data-testid="link-footer-privacy">Privacidade</Link></div></div><div><p className="mb-5 text-[10px] font-semibold uppercase tracking-[.2em] text-[#d7c59b]">Uma carta de Horizon</p><p className="mb-5 text-sm leading-6 text-[#f7f4ee]/55">Receba novidades e experiências especiais, sem excesso.</p><form onSubmit={e => { e.preventDefault(); if (email) setSent(true); }} className="flex border-b border-[#f7f4ee]/35 pb-2"><label htmlFor="newsletter-email" className="sr-only">Seu e-mail</label><input id="newsletter-email" type="email" required value={email} onChange={e => setEmail(e.target.value)} placeholder="Seu melhor e-mail" className="focus-ring min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-[#f7f4ee]/40" data-testid="input-newsletter" /><button aria-label="Inscrever-se" className="focus-ring text-[#d7c59b]" data-testid="button-newsletter">{sent ? <span className="text-[10px] uppercase tracking-[.1em]">Inscrito</span> : <Send size={16} />}</button></form></div></div><div className="flex flex-col justify-between gap-5 pt-7 text-[10px] uppercase tracking-[.13em] text-[#f7f4ee]/45 sm:flex-row"><span>© 2026 Hotel Horizon. Todos os direitos reservados.</span><div className="flex items-center gap-5"><a href="https://instagram.com" target="_blank" rel="noreferrer" aria-label="Instagram" data-testid="link-instagram"><Instagram size={16} /></a><a href="https://facebook.com" target="_blank" rel="noreferrer" aria-label="Facebook" data-testid="link-facebook"><Globe2 size={16} /></a><span>Estrada do Horto, 4400, Alto da Boa Vista, Campos do Jordão — SP</span></div></div></div></footer>; }
+function Footer() { const [email, setEmail] = useState(''); const [sent, setSent] = useState(false); return <footer className="bg-[#1d2b25] px-5 pb-8 pt-16 text-[#f7f4ee] sm:px-8 lg:px-12" data-testid="site-footer"><div className="mx-auto max-w-[1280px]"><div className="grid gap-12 border-b border-[#f7f4ee]/15 pb-14 md:grid-cols-[1.3fr_1fr_1fr_1.5fr]"><div><Logo light /><p className="mt-6 max-w-xs text-sm leading-6 text-[#f7f4ee]/55">Uma casa para viver a serra com presença, beleza e tempo.</p></div><div><p className="mb-5 text-[10px] font-semibold uppercase tracking-[.2em] text-[#d7c59b]">Hotel</p><div className="flex flex-col items-start gap-3 text-sm text-[#f7f4ee]/65"><button onClick={() => scrollToId('hotel')} data-testid="button-footer-hotel">O hotel</button><button onClick={() => scrollToId('acomodacoes')} data-testid="button-footer-rooms">Acomodações</button><button onClick={() => scrollToId('experiencias')} data-testid="button-footer-experiences">Experiências</button><Link href="/restaurante" data-testid="link-footer-restaurant">Restaurante</Link><Link href="/spa" data-testid="link-footer-spa">Spa</Link><button onClick={() => scrollToId('galeria')} data-testid="button-footer-gallery">Galeria</button></div></div><div><p className="mb-5 text-[10px] font-semibold uppercase tracking-[.2em] text-[#d7c59b]">Informações</p><div className="flex flex-col items-start gap-3 text-sm text-[#f7f4ee]/65"><button onClick={() => scrollToId('localizacao')} data-testid="button-footer-location">Localização</button><a href="mailto:cuidado@hotelhorizon.com.br" data-testid="link-footer-email">Contato</a><a href={whatsappLink('Olá! Gostaria de tirar uma dúvida sobre o Hotel Horizon.')} target="_blank" rel="noreferrer" data-testid="link-footer-whatsapp">WhatsApp: {WHATSAPP_DISPLAY}</a><Link href="/politica-de-privacidade" data-testid="link-footer-privacy">Privacidade</Link></div></div><div><p className="mb-5 text-[10px] font-semibold uppercase tracking-[.2em] text-[#d7c59b]">Uma carta de Horizon</p><p className="mb-5 text-sm leading-6 text-[#f7f4ee]/55">Receba novidades e experiências especiais, sem excesso.</p><form onSubmit={e => { e.preventDefault(); if (email) setSent(true); }} className="flex border-b border-[#f7f4ee]/35 pb-2"><label htmlFor="newsletter-email" className="sr-only">Seu e-mail</label><input id="newsletter-email" type="email" required value={email} onChange={e => setEmail(e.target.value)} placeholder="Seu melhor e-mail" className="focus-ring min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-[#f7f4ee]/40" data-testid="input-newsletter" /><button aria-label="Inscrever-se" className="focus-ring text-[#d7c59b]" data-testid="button-newsletter">{sent ? <span className="text-[10px] uppercase tracking-[.1em]">Inscrito</span> : <Send size={16} />}</button></form></div></div><div className="flex flex-col justify-between gap-5 pt-7 text-[10px] uppercase tracking-[.13em] text-[#f7f4ee]/45 sm:flex-row"><span>© 2026 Hotel Horizon. Todos os direitos reservados.</span><div className="flex items-center gap-5"><a href="https://instagram.com" target="_blank" rel="noreferrer" aria-label="Instagram" data-testid="link-instagram"><Instagram size={16} /></a><a href="https://facebook.com" target="_blank" rel="noreferrer" aria-label="Facebook" data-testid="link-facebook"><Globe2 size={16} /></a><span>Estrada do Horto, 4400, Alto da Boa Vista, Campos do Jordão — SP</span></div></div></div></footer>; }
 
 function Lightbox({ index, onClose, onChange }: { index: number; onClose: () => void; onChange: (index: number) => void }) { const item = gallery[index]; useEffect(() => { const handle = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); if (e.key === 'ArrowRight') onChange((index + 1) % gallery.length); if (e.key === 'ArrowLeft') onChange((index - 1 + gallery.length) % gallery.length); }; window.addEventListener('keydown', handle); document.body.style.overflow = 'hidden'; return () => { window.removeEventListener('keydown', handle); document.body.style.overflow = ''; }; }, [index, onClose, onChange]); return <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#15231d]/95 p-5 sm:p-10" role="dialog" aria-modal="true" aria-label={`Imagem: ${item.label}`}><button onClick={onClose} className="focus-ring absolute right-5 top-5 flex h-11 w-11 items-center justify-center rounded-full border border-[#f7f4ee]/30 text-[#f7f4ee]" aria-label="Fechar galeria" data-testid="button-lightbox-close"><X size={20} /></button><button onClick={() => onChange((index - 1 + gallery.length) % gallery.length)} className="focus-ring absolute left-3 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full border border-[#f7f4ee]/30 text-[#f7f4ee] sm:left-8" aria-label="Imagem anterior" data-testid="button-lightbox-prev"><ArrowLeft size={18} /></button><figure className="max-h-full max-w-5xl text-center"><img src={item.src} alt={item.label} className="max-h-[78vh] w-auto max-w-full object-contain" /><figcaption className="mt-4 text-[10px] uppercase tracking-[.2em] text-[#f7f4ee]/65">{item.label} <span className="mx-3 text-[#d7c59b]">{String(index + 1).padStart(2, '0')} / {String(gallery.length).padStart(2, '0')}</span></figcaption></figure><button onClick={() => onChange((index + 1) % gallery.length)} className="focus-ring absolute right-3 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full border border-[#f7f4ee]/30 text-[#f7f4ee] sm:right-8" aria-label="Próxima imagem" data-testid="button-lightbox-next"><ArrowRight size={18} /></button></div>; }
 
@@ -152,7 +299,9 @@ function Home() { const [lightbox, setLightbox] = useState<number | null>(null);
 
 function AccommodationDetail() { const [, params] = useRoute('/acomodacoes/:slug'); const room = rooms.find(item => item.slug === params?.slug) ?? rooms[0]; const [lightbox, setLightbox] = useState<number | null>(null); return <div className="noise min-h-[100dvh] bg-[#f7f4ee]"><Header /><main className="pt-[78px]"><div className="mx-auto max-w-[1440px] px-5 py-8 sm:px-8 lg:px-12"><Link href="/" className="focus-ring line-link inline-flex items-center gap-2 pb-1 text-[10px] font-semibold uppercase tracking-[.16em] text-[#243b30]" data-testid="link-detail-back"><ArrowLeft size={15} /> Voltar ao hotel</Link><div className="mt-8 grid gap-3 md:grid-cols-2 md:grid-rows-2"><button onClick={() => setLightbox(0)} className="focus-ring img-zoom row-span-2 aspect-[.9] overflow-hidden md:aspect-auto" data-testid="button-detail-gallery-0"><img src={room.gallery[0]} alt={room.name} className="h-full w-full object-cover" /></button>{room.gallery.slice(1).map((src, i) => <button onClick={() => setLightbox(i + 1)} key={src} className="focus-ring img-zoom hidden aspect-[1.6] overflow-hidden md:block" data-testid={`button-detail-gallery-${i + 1}`}><img src={src} alt={`${room.name}, detalhe ${i + 2}`} className="h-full w-full object-cover" /></button>)}</div></div><section className="mx-auto grid max-w-[1280px] gap-12 px-5 py-16 sm:px-8 sm:py-24 lg:grid-cols-[1.1fr_.9fr] lg:gap-24 lg:px-12"><div><Eyebrow>{room.eyebrow}</Eyebrow><h1 className="font-display text-5xl leading-[1.02] text-[#243b30] sm:text-7xl">{room.name}</h1><p className="mt-8 max-w-xl text-base leading-8 text-[#706e67]">{room.longDescription}</p><div className="mt-12 grid grid-cols-2 gap-y-7 border-y border-[#243b30]/15 py-7 sm:grid-cols-4"><div><p className="text-[9px] uppercase tracking-[.16em] text-[#706e67]">Hóspedes</p><p className="mt-2 font-display text-xl text-[#243b30]">{room.guests}</p></div><div><p className="text-[9px] uppercase tracking-[.16em] text-[#706e67]">Área</p><p className="mt-2 font-display text-xl text-[#243b30]">{room.area}</p></div><div><p className="text-[9px] uppercase tracking-[.16em] text-[#706e67]">Cama</p><p className="mt-2 font-display text-xl text-[#243b30]">King</p></div><div><p className="text-[9px] uppercase tracking-[.16em] text-[#706e67]">Vista</p><p className="mt-2 font-display text-xl text-[#243b30]">{room.view.split(' ')[0]}</p></div></div><h2 className="mt-14 font-display text-3xl text-[#243b30]">Comodidades</h2><div className="mt-5 grid gap-3 text-sm text-[#706e67] sm:grid-cols-2">{room.amenities.map(item => <p key={item} className="flex items-center gap-3"><span className="h-1.5 w-1.5 rounded-full bg-[#b89b5e]" />{item}</p>)}</div></div><aside className="h-fit border border-[#243b30]/15 bg-[#e8e0d2] p-6 sm:p-8 lg:sticky lg:top-28"><p className="text-[10px] font-semibold uppercase tracking-[.2em] text-[#9a7d42]">Sua estadia</p><p className="mt-3 font-display text-3xl text-[#243b30]">{room.price}</p><p className="mt-3 text-sm leading-6 text-[#706e67]">Consulte datas e condições para esta acomodação. Nossa equipe responde pessoalmente.</p><Link href={`/reservar?accommodationSlug=${room.slug}`} className="focus-ring mt-7 flex items-center justify-center bg-[#243b30] px-5 py-4 text-[10px] font-semibold uppercase tracking-[.17em] text-[#f7f4ee] transition hover:bg-[#345244]" data-testid="link-detail-reserve">Reservar esta acomodação <ArrowRight className="ml-3" size={15} /></Link><div className="mt-8 border-t border-[#243b30]/15 pt-6"><p className="text-[10px] font-semibold uppercase tracking-[.17em] text-[#243b30]">Política de hospedagem</p><p className="mt-3 text-xs leading-5 text-[#706e67]">Check-in a partir das 15h · Check-out até 12h<br />Cancelamento flexível até 7 dias antes.</p></div></aside></section></main><Footer />{lightbox !== null && <Lightbox index={lightbox} onClose={() => setLightbox(null)} onChange={setLightbox} />}</div>; }
 
-type ReserveStep = 'search' | 'results' | 'form' | 'confirmation';
+// 'payment' reúne a escolha da forma de pagamento e o resumo do pedido,
+// exibidos antes da confirmação final (checkout).
+type ReserveStep = 'search' | 'results' | 'form' | 'payment' | 'confirmation';
 
 function OfferBanner({ offer }: { offer: (typeof offers)[number] }) {
   return <div className="mb-6 border border-[#b89b5e]/50 bg-[#243b30] p-5 text-[#f7f4ee]" data-testid="banner-offer">
@@ -163,20 +312,29 @@ function OfferBanner({ offer }: { offer: (typeof offers)[number] }) {
   </div>;
 }
 
+/** Selo visual do desconto progressivo por tempo de permanência. */
+function StayDiscountBadge({ nights }: { nights: number }) {
+  const percent = lengthOfStayDiscountPercent(nights);
+  if (percent === 0) return null;
+  return <p className="mt-1 inline-flex items-center gap-1.5 bg-[#4c7a5f]/10 px-2 py-1 text-[10px] font-semibold uppercase tracking-[.08em] text-[#4c7a5f]" data-testid="badge-stay-discount">-{percent}% por {nights} diárias</p>;
+}
+
 function Reserve() {
   const [location, setLocation] = useLocation();
   const params = new URLSearchParams(location.split('?')[1] ?? '');
   const activeOffer = offers.find(o => o.offerCode === params.get('offer'));
   const preselectedSlug = params.get('accommodationSlug') ?? '';
+  const { isAuthenticated } = useAuth();
 
   const [step, setStep] = useState<ReserveStep>(params.get('checkin') && params.get('checkout') ? 'results' : 'search');
   const [checkin, setCheckin] = useState(params.get('checkin') ?? '');
   const [checkout, setCheckout] = useState(params.get('checkout') ?? '');
-  const [guests, setGuests] = useState(params.get('guests') ?? '2');
+  const [adults, setAdults] = useState(params.get('adults') ?? params.get('guests') ?? '2');
+  const [children, setChildren] = useState(params.get('children') ?? '0');
   const [roomsCount, setRoomsCount] = useState(params.get('rooms') ?? '1');
   const [searchError, setSearchError] = useState('');
   const [selectedOption, setSelectedOption] = useState<AccommodationOption | null>(null);
-  const [confirmedReservation, setConfirmedReservation] = useState<{ confirmationCode: string; accommodationName: string; checkin: string; checkout: string; guests: number; totalAmount: number; guestName: string } | null>(null);
+  const [confirmedReservation, setConfirmedReservation] = useState<{ confirmationCode: string; accommodationName: string; checkin: string; checkout: string; guests: number; totalAmount: number; guestName: string; paymentSummary: string } | null>(null);
 
   const [guestName, setGuestName] = useState('');
   const [guestEmail, setGuestEmail] = useState('');
@@ -184,9 +342,15 @@ function Reserve() {
   const [specialRequests, setSpecialRequests] = useState('');
   const [agreedPrivacy, setAgreedPrivacy] = useState(false);
   const [formError, setFormError] = useState('');
+  const [authOpen, setAuthOpen] = useState(false);
 
-  const guestsNumber = Number(guests) || 1;
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('pix');
+  const [installments, setInstallments] = useState(1);
+  const [paymentError, setPaymentError] = useState('');
+
+  const guestsNumber = Math.min((Number(adults) || 1) + (Number(children) || 0), 6);
   const roomsNumber = Number(roomsCount) || 1;
+  const nights = nightsBetween(checkin, checkout);
 
   const availabilityParams = { checkin, checkout, guests: guestsNumber, rooms: roomsNumber };
   const availability = useCheckAvailability(
@@ -195,23 +359,29 @@ function Reserve() {
   );
   const createReservation = useCreateReservation();
 
+  // Subtotal já com o desconto de diárias (vindo da API) e com a oferta promocional aplicada,
+  // antes do desconto/parcelamento da forma de pagamento.
+  const subtotalWithOffer = selectedOption ? (activeOffer ? applyDiscount(selectedOption.totalPrice, activeOffer.discountPercent) : selectedOption.totalPrice) : 0;
+  const pixTotal = applyDiscount(subtotalWithOffer, PIX_DISCOUNT_PERCENT);
+  const installmentOptions = useMemo(() => buildInstallments(subtotalWithOffer), [subtotalWithOffer]);
+  const chosenInstallment = installmentOptions[installments - 1];
+  const finalTotal = paymentMethod === 'pix' ? pixTotal : chosenInstallment?.totalAmount ?? subtotalWithOffer;
+
   const runSearch = (e: React.FormEvent) => {
     e.preventDefault();
     setSearchError('');
     if (!checkin || !checkout) { setSearchError('Selecione as datas de check-in e check-out.'); return; }
     if (checkin < todayISO()) { setSearchError('A data de check-in não pode estar no passado.'); return; }
     if (checkout <= checkin) { setSearchError('O check-out deve ser depois do check-in.'); return; }
-    if (activeOffer?.offerCode === 'ritmo-da-serra') {
-      const nights = Math.round((new Date(`${checkout}T00:00:00`).getTime() - new Date(`${checkin}T00:00:00`).getTime()) / 86400000);
-      if (nights < 3) { setSearchError('A oferta "Ritmo da serra" exige no mínimo 3 noites.'); return; }
-    }
-    setLocation(`/reservar?${new URLSearchParams({ checkin, checkout, guests, rooms: roomsCount, ...(activeOffer ? { offer: activeOffer.offerCode } : {}) }).toString()}`, { replace: true });
+    if (activeOffer?.offerCode === 'ritmo-da-serra' && nightsBetween(checkin, checkout) < 3) { setSearchError('A oferta "Ritmo da serra" exige no mínimo 3 noites.'); return; }
+    setLocation(`/reservar?${new URLSearchParams({ checkin, checkout, guests: String(guestsNumber), adults, children, rooms: roomsCount, ...(activeOffer ? { offer: activeOffer.offerCode } : {}) }).toString()}`, { replace: true });
     setStep('results');
   };
 
   const chooseOption = (option: AccommodationOption) => { setSelectedOption(option); setFormError(''); setStep('form'); };
 
-  const submitReservation = (e: React.FormEvent) => {
+  // Apenas usuários autenticados podem avançar da etapa de dados para a etapa de pagamento.
+  const goToPayment = (e: React.FormEvent) => {
     e.preventDefault();
     setFormError('');
     if (!selectedOption) return;
@@ -219,6 +389,23 @@ function Reserve() {
     if (!isValidEmail(guestEmail)) { setFormError('Informe um e-mail válido.'); return; }
     if (guestPhone.trim().length < 8) { setFormError('Informe um telefone válido.'); return; }
     if (!agreedPrivacy) { setFormError('É necessário concordar com a Política de Privacidade para continuar.'); return; }
+    if (!isAuthenticated) { setAuthOpen(true); return; }
+    setStep('payment');
+  };
+
+  const submitReservation = (e: React.FormEvent) => {
+    e.preventDefault();
+    setPaymentError('');
+    if (!selectedOption) return;
+    if (!isAuthenticated) { setAuthOpen(true); return; }
+
+    // O backend ainda não recebe forma de pagamento/parcelas diretamente, então
+    // registramos o resumo do checkout nas observações da reserva, mantendo o
+    // valor efetivamente cobrado (com desconto Pix ou parcelamento) visível para a equipe.
+    const paymentSummary = paymentMethod === 'pix'
+      ? `Pagamento via Pix com 10% de desconto — total ${formatBRL(pixTotal)}.`
+      : `Pagamento no cartão de crédito em ${chosenInstallment.count}x de ${formatBRL(chosenInstallment.amountPerInstallment)} (total ${formatBRL(chosenInstallment.totalAmount)}${chosenInstallment.hasInterest ? ', com juros' : ', sem juros'}).`;
+    const notes = [specialRequests.trim(), paymentSummary].filter(Boolean).join(' | ');
 
     createReservation.mutate(
       { data: {
@@ -226,14 +413,14 @@ function Reserve() {
         accommodationSlug: selectedOption.slug,
         offerCode: activeOffer?.offerCode ?? null,
         guestName: guestName.trim(), guestEmail: guestEmail.trim(), guestPhone: guestPhone.trim(),
-        specialRequests: specialRequests.trim() || null,
+        specialRequests: notes || null,
       } },
       {
         onSuccess: (reservation) => {
-          setConfirmedReservation({ confirmationCode: reservation.confirmationCode, accommodationName: reservation.accommodationName, checkin: reservation.checkin, checkout: reservation.checkout, guests: reservation.guests, totalAmount: reservation.totalAmount, guestName: reservation.guestName });
+          setConfirmedReservation({ confirmationCode: reservation.confirmationCode, accommodationName: reservation.accommodationName, checkin: reservation.checkin, checkout: reservation.checkout, guests: reservation.guests, totalAmount: finalTotal, guestName: reservation.guestName, paymentSummary });
           setStep('confirmation');
         },
-        onError: (err) => setFormError(err instanceof Error ? err.message : 'Não foi possível concluir a reserva agora. Tente novamente.'),
+        onError: (err) => setPaymentError(err instanceof Error ? err.message : 'Não foi possível concluir a reserva agora. Tente novamente.'),
       },
     );
   };
@@ -250,8 +437,9 @@ function Reserve() {
           <div className="mt-6 grid grid-cols-2 gap-3">
             <label className="flex flex-col gap-1"><span className="text-[9px] font-semibold uppercase tracking-[.16em] text-[#706e67]">Check-in</span><input required type="date" min={todayISO()} value={checkin} onChange={e => setCheckin(e.target.value)} className="focus-ring border border-[#243b30]/20 bg-transparent px-3 py-3 text-sm outline-none" data-testid="input-search-checkin" /></label>
             <label className="flex flex-col gap-1"><span className="text-[9px] font-semibold uppercase tracking-[.16em] text-[#706e67]">Check-out</span><input required type="date" min={checkin || todayISO()} value={checkout} onChange={e => setCheckout(e.target.value)} className="focus-ring border border-[#243b30]/20 bg-transparent px-3 py-3 text-sm outline-none" data-testid="input-search-checkout" /></label>
-            <label className="flex flex-col gap-1"><span className="text-[9px] font-semibold uppercase tracking-[.16em] text-[#706e67]">Hóspedes</span><select value={guests} onChange={e => setGuests(e.target.value)} className="focus-ring border border-[#243b30]/20 bg-transparent px-3 py-3 text-sm outline-none" data-testid="select-search-guests">{[1,2,3,4,5,6].map(n => <option key={n} value={n}>{n} {n === 1 ? 'hóspede' : 'hóspedes'}</option>)}</select></label>
-            <label className="flex flex-col gap-1"><span className="text-[9px] font-semibold uppercase tracking-[.16em] text-[#706e67]">Quartos</span><select value={roomsCount} onChange={e => setRoomsCount(e.target.value)} className="focus-ring border border-[#243b30]/20 bg-transparent px-3 py-3 text-sm outline-none" data-testid="select-search-rooms">{[1,2,3].map(n => <option key={n} value={n}>{n}</option>)}</select></label>
+            <label className="flex flex-col gap-1"><span className="text-[9px] font-semibold uppercase tracking-[.16em] text-[#706e67]">Adultos</span><select value={adults} onChange={e => setAdults(e.target.value)} className="focus-ring border border-[#243b30]/20 bg-transparent px-3 py-3 text-sm outline-none" data-testid="select-search-adults">{[1,2,3,4,5,6].map(n => <option key={n} value={n}>{n} {n === 1 ? 'adulto' : 'adultos'}</option>)}</select></label>
+            <label className="flex flex-col gap-1"><span className="text-[9px] font-semibold uppercase tracking-[.16em] text-[#706e67]">Crianças</span><select value={children} onChange={e => setChildren(e.target.value)} className="focus-ring border border-[#243b30]/20 bg-transparent px-3 py-3 text-sm outline-none" data-testid="select-search-children">{[0,1,2,3,4].map(n => <option key={n} value={n}>{n} {n === 1 ? 'criança' : 'crianças'}</option>)}</select></label>
+            <label className="col-span-2 flex flex-col gap-1"><span className="text-[9px] font-semibold uppercase tracking-[.16em] text-[#706e67]">Quartos</span><select value={roomsCount} onChange={e => setRoomsCount(e.target.value)} className="focus-ring border border-[#243b30]/20 bg-transparent px-3 py-3 text-sm outline-none" data-testid="select-search-rooms">{[1,2,3].map(n => <option key={n} value={n}>{n}</option>)}</select></label>
           </div>
           {searchError && <p className="mt-3 flex items-center gap-2 text-xs text-red-700" role="alert" data-testid="text-search-error"><AlertCircle size={14} /> {searchError}</p>}
           <button type="submit" className="focus-ring mt-6 w-full bg-[#b89b5e] px-5 py-4 text-[10px] font-semibold uppercase tracking-[.16em] text-[#1d2b25] transition hover:bg-[#cfb777]" data-testid="button-search-availability">Ver disponibilidade</button>
@@ -259,19 +447,19 @@ function Reserve() {
 
         {step === 'results' && <div data-testid="section-reserve-results">
           <div className="flex items-center justify-between"><h2 className="font-display text-3xl text-[#243b30]">Quartos disponíveis</h2><button onClick={() => setStep('search')} className="focus-ring text-[10px] font-semibold uppercase tracking-[.14em] text-[#243b30]" data-testid="button-back-to-search">Alterar busca</button></div>
-          <p className="mt-2 text-sm text-[#706e67]">{checkin} a {checkout} · {guests} {guestsNumber === 1 ? 'hóspede' : 'hóspedes'} · {roomsCount} {roomsNumber === 1 ? 'quarto' : 'quartos'}</p>
+          <p className="mt-2 text-sm text-[#706e67]">{checkin} a {checkout} · {nights} {nights === 1 ? 'diária' : 'diárias'} · {adults} {Number(adults) === 1 ? 'adulto' : 'adultos'}{Number(children) > 0 ? ` + ${children} ${Number(children) === 1 ? 'criança' : 'crianças'}` : ''} · {roomsCount} {roomsNumber === 1 ? 'quarto' : 'quartos'}</p>
           {availability.isLoading && <p className="mt-8 flex items-center gap-2 text-sm text-[#706e67]" data-testid="text-availability-loading"><Loader2 size={16} className="animate-spin" /> Consultando disponibilidade…</p>}
           {availability.isError && <p className="mt-8 flex items-center gap-2 text-sm text-red-700" role="alert" data-testid="text-availability-error"><AlertCircle size={16} /> Não foi possível consultar a disponibilidade agora. Tente novamente.</p>}
           {availability.data && <div className="mt-6 space-y-4">
-            {availability.data.options.filter(option => option.availableRooms >= roomsNumber && option.maxGuests * roomsNumber >= guestsNumber).length === 0 && <p className="text-sm text-[#706e67]" data-testid="text-no-availability">{availability.data.message}</p>}
+            {availability.data.options.filter(option => option.availableRooms >= roomsNumber && option.maxGuests * roomsNumber >= guestsNumber).length === 0 && <p className="flex items-start gap-2 border border-[#b89b5e]/40 bg-[#e8e0d2] p-4 text-sm leading-6 text-[#243b30]" data-testid="text-no-availability"><AlertCircle size={16} className="mt-0.5 shrink-0 text-[#9a7d42]" /> {availability.data.message} Tente ajustar as datas ou reduzir o número de hóspedes.</p>}
             {availability.data.options.filter(option => option.availableRooms >= roomsNumber && option.maxGuests * roomsNumber >= guestsNumber).map(option => {
               const preselected = preselectedSlug === option.slug;
-              const discounted = activeOffer ? Math.round(option.totalPrice * (1 - activeOffer.discountPercent / 100)) : option.totalPrice;
+              const discounted = activeOffer ? applyDiscount(option.totalPrice, activeOffer.discountPercent) : option.totalPrice;
               return <article key={option.slug} className={`flex gap-4 border p-4 ${preselected ? 'border-[#b89b5e]' : 'border-[#243b30]/15'}`} data-testid={`card-availability-${option.slug}`}>
                 <img src={option.photos[0]} alt={option.name} className="h-24 w-24 shrink-0 object-cover" loading="lazy" />
-                <div className="flex-1"><h3 className="font-display text-xl text-[#243b30]">{option.name}</h3><p className="mt-1 text-xs leading-5 text-[#706e67]">{option.description}</p><p className="mt-2 text-[11px] uppercase tracking-[.1em] text-[#706e67]">Até {option.maxGuests} hóspedes por quarto · {option.availableRooms} {option.availableRooms === 1 ? 'quarto disponível' : 'quartos disponíveis'}</p></div>
+                <div className="flex-1"><h3 className="font-display text-xl text-[#243b30]">{option.name}</h3><p className="mt-1 text-xs leading-5 text-[#706e67]">{option.description}</p><p className="mt-2 text-[11px] uppercase tracking-[.1em] text-[#706e67]">Até {option.maxGuests} hóspedes por quarto · {option.availableRooms} {option.availableRooms === 1 ? 'quarto disponível' : 'quartos disponíveis'}</p><StayDiscountBadge nights={nights} /></div>
                 <div className="flex shrink-0 flex-col items-end justify-between text-right">
-                  <div><p className="text-[10px] uppercase tracking-[.1em] text-[#706e67]">{formatBRL(option.pricePerNight)} / noite</p><p className="mt-1 font-display text-lg text-[#243b30]">{formatBRL(discounted)}</p>{activeOffer && <p className="text-[10px] text-[#9a7d42]">com a oferta ({activeOffer.discountPercent}% off)</p>}</div>
+                  <div><p className="text-[10px] uppercase tracking-[.1em] text-[#706e67]">{formatBRL(option.pricePerNight)} / noite · {nights} {nights === 1 ? 'diária' : 'diárias'}</p><p className="mt-1 font-display text-lg text-[#243b30]">{formatBRL(discounted)}</p>{activeOffer && <p className="text-[10px] text-[#9a7d42]">com a oferta ({activeOffer.discountPercent}% off)</p>}</div>
                   <button onClick={() => chooseOption(option)} className="focus-ring mt-3 bg-[#243b30] px-4 py-2.5 text-[9px] font-semibold uppercase tracking-[.14em] text-[#f7f4ee] transition hover:bg-[#345244]" data-testid={`button-choose-${option.slug}`}>Escolher este quarto</button>
                 </div>
               </article>;
@@ -279,9 +467,9 @@ function Reserve() {
           </div>}
         </div>}
 
-        {step === 'form' && selectedOption && <form onSubmit={submitReservation} data-testid="form-reserve-guest">
+        {step === 'form' && selectedOption && <form onSubmit={goToPayment} data-testid="form-reserve-guest">
           <div className="flex items-center justify-between"><h2 className="font-display text-3xl text-[#243b30]">Seus dados</h2><button type="button" onClick={() => setStep('results')} className="focus-ring text-[10px] font-semibold uppercase tracking-[.14em] text-[#243b30]" data-testid="button-back-to-results">Trocar quarto</button></div>
-          <div className="mt-4 flex items-center gap-3 border border-[#243b30]/15 bg-[#e8e0d2] p-4"><img src={selectedOption.photos[0]} alt={selectedOption.name} className="h-16 w-16 object-cover" /><div><p className="font-display text-lg text-[#243b30]">{selectedOption.name}</p><p className="text-xs text-[#706e67]">{checkin} a {checkout} · {guests} {guestsNumber === 1 ? 'hóspede' : 'hóspedes'}</p><p className="text-xs font-medium text-[#243b30]">{formatBRL(activeOffer ? Math.round(selectedOption.totalPrice * (1 - activeOffer.discountPercent / 100)) : selectedOption.totalPrice)} · pagamento no check-in</p></div></div>
+          <div className="mt-4 flex items-center gap-3 border border-[#243b30]/15 bg-[#e8e0d2] p-4"><img src={selectedOption.photos[0]} alt={selectedOption.name} className="h-16 w-16 object-cover" /><div><p className="font-display text-lg text-[#243b30]">{selectedOption.name}</p><p className="text-xs text-[#706e67]">{checkin} a {checkout} · {nights} {nights === 1 ? 'diária' : 'diárias'} · {guestsNumber} {guestsNumber === 1 ? 'hóspede' : 'hóspedes'}</p><p className="text-xs font-medium text-[#243b30]">{formatBRL(subtotalWithOffer)}</p></div></div>
           <div className="mt-6 grid gap-4">
             <label className="flex flex-col gap-1"><span className="text-[9px] font-semibold uppercase tracking-[.16em] text-[#706e67]">Nome completo</span><input required value={guestName} onChange={e => setGuestName(e.target.value)} className="focus-ring border border-[#243b30]/20 bg-transparent px-3 py-3 text-sm outline-none" data-testid="input-guest-name" /></label>
             <label className="flex flex-col gap-1"><span className="text-[9px] font-semibold uppercase tracking-[.16em] text-[#706e67]">E-mail</span><input required type="email" value={guestEmail} onChange={e => setGuestEmail(e.target.value)} className="focus-ring border border-[#243b30]/20 bg-transparent px-3 py-3 text-sm outline-none" data-testid="input-guest-email" /></label>
@@ -290,7 +478,52 @@ function Reserve() {
             <label className="flex items-start gap-2 text-xs text-[#706e67]"><input required type="checkbox" checked={agreedPrivacy} onChange={e => setAgreedPrivacy(e.target.checked)} className="focus-ring mt-0.5" data-testid="checkbox-privacy" /><span>Li e concordo com a <Link href="/politica-de-privacidade" target="_blank" className="underline">Política de Privacidade</Link>.</span></label>
           </div>
           {formError && <p className="mt-4 flex items-center gap-2 text-xs text-red-700" role="alert" data-testid="text-form-error"><AlertCircle size={14} /> {formError}</p>}
-          <button type="submit" disabled={createReservation.isPending} className="focus-ring mt-6 flex w-full items-center justify-center gap-2 bg-[#b89b5e] px-5 py-4 text-[10px] font-semibold uppercase tracking-[.16em] text-[#1d2b25] transition hover:bg-[#cfb777] disabled:opacity-60" data-testid="button-confirm-reservation">{createReservation.isPending && <Loader2 size={14} className="animate-spin" />} Confirmar reserva</button>
+          {!isAuthenticated && <p className="mt-4 flex items-center gap-2 text-xs text-[#9a7d42]" data-testid="text-auth-required"><AlertCircle size={14} /> É necessário entrar ou criar uma conta para prosseguir ao pagamento.</p>}
+          <button type="submit" className="focus-ring mt-6 flex w-full items-center justify-center gap-2 bg-[#b89b5e] px-5 py-4 text-[10px] font-semibold uppercase tracking-[.16em] text-[#1d2b25] transition hover:bg-[#cfb777]" data-testid="button-go-to-payment">Continuar para pagamento <ArrowRight size={14} /></button>
+        </form>}
+
+        {step === 'payment' && selectedOption && <form onSubmit={submitReservation} data-testid="form-reserve-payment">
+          <div className="flex items-center justify-between"><h2 className="font-display text-3xl text-[#243b30]">Pagamento</h2><button type="button" onClick={() => setStep('form')} className="focus-ring text-[10px] font-semibold uppercase tracking-[.14em] text-[#243b30]" data-testid="button-back-to-form">Editar dados</button></div>
+
+          <div className="mt-6 grid gap-3 sm:grid-cols-2">
+            <button type="button" onClick={() => setPaymentMethod('pix')} className={`focus-ring flex flex-col items-start gap-2 border p-4 text-left transition ${paymentMethod === 'pix' ? 'border-[#243b30] bg-[#e8e0d2]' : 'border-[#243b30]/20'}`} data-testid="button-payment-pix">
+              <span className="flex items-center gap-2 font-display text-lg text-[#243b30]"><QrCode size={18} /> Pix</span>
+              <span className="text-xs leading-5 text-[#706e67]">10% de desconto automático, aprovação imediata.</span>
+            </button>
+            <button type="button" onClick={() => setPaymentMethod('credit_card')} className={`focus-ring flex flex-col items-start gap-2 border p-4 text-left transition ${paymentMethod === 'credit_card' ? 'border-[#243b30] bg-[#e8e0d2]' : 'border-[#243b30]/20'}`} data-testid="button-payment-card">
+              <span className="flex items-center gap-2 font-display text-lg text-[#243b30]"><CreditCard size={18} /> Cartão de crédito</span>
+              <span className="text-xs leading-5 text-[#706e67]">Parcele em até 12x.</span>
+            </button>
+          </div>
+
+          {paymentMethod === 'pix' && <div className="mt-5 border border-[#4c7a5f]/40 bg-[#4c7a5f]/10 p-4" data-testid="section-pix-summary">
+            <p className="flex items-center justify-between text-sm"><span className="text-[#706e67] line-through">{formatBRL(subtotalWithOffer)}</span><span className="font-display text-xl text-[#243b30]">{formatBRL(pixTotal)}</span></p>
+            <p className="mt-1 text-[11px] font-semibold uppercase tracking-[.1em] text-[#4c7a5f]">Você economiza {formatBRL(subtotalWithOffer - pixTotal)} pagando com Pix</p>
+          </div>}
+
+          {paymentMethod === 'credit_card' && <div className="mt-5" data-testid="section-card-summary">
+            <label className="flex flex-col gap-1"><span className="text-[9px] font-semibold uppercase tracking-[.16em] text-[#706e67]">Parcelas</span>
+              <select value={installments} onChange={e => setInstallments(Number(e.target.value))} className="focus-ring border border-[#243b30]/20 bg-transparent px-3 py-3 text-sm outline-none" data-testid="select-installments">
+                {installmentOptions.map(opt => <option key={opt.count} value={opt.count}>{opt.count}x de {formatBRL(opt.amountPerInstallment)}{opt.hasInterest ? ' (com juros)' : opt.count === 1 ? ' à vista' : ' sem juros'}</option>)}
+              </select>
+            </label>
+            <p className="mt-3 flex items-center gap-2 text-xs text-[#706e67]"><Wallet size={14} /> Total: {formatBRL(chosenInstallment?.totalAmount ?? subtotalWithOffer)}</p>
+          </div>}
+
+          <div className="mt-8 space-y-2 border-t border-[#243b30]/15 pt-6 text-sm" data-testid="section-order-summary">
+            <p className="mb-1 text-[10px] font-semibold uppercase tracking-[.16em] text-[#706e67]">Resumo do pedido</p>
+            <p className="flex justify-between"><span className="text-[#706e67]">Acomodação</span><span className="font-medium text-[#243b30]">{selectedOption.name}</span></p>
+            <p className="flex justify-between"><span className="text-[#706e67]">Datas</span><span className="font-medium text-[#243b30]">{checkin} a {checkout} ({nights} {nights === 1 ? 'diária' : 'diárias'})</span></p>
+            <p className="flex justify-between"><span className="text-[#706e67]">Hóspedes</span><span className="font-medium text-[#243b30]">{guestsNumber}</span></p>
+            <p className="flex justify-between"><span className="text-[#706e67]">Diária base ({nights}x)</span><span className="text-[#243b30]">{formatBRL(selectedOption.pricePerNight * nights * roomsNumber)}</span></p>
+            {lengthOfStayDiscountPercent(nights) > 0 && <p className="flex justify-between"><span className="text-[#706e67]">Desconto de permanência</span><span className="text-[#4c7a5f]">-{lengthOfStayDiscountPercent(nights)}%</span></p>}
+            {activeOffer && <p className="flex justify-between"><span className="text-[#706e67]">Oferta "{activeOffer.title}"</span><span className="text-[#4c7a5f]">-{activeOffer.discountPercent}%</span></p>}
+            <p className="flex justify-between"><span className="text-[#706e67]">Forma de pagamento</span><span className="text-[#243b30]">{paymentMethod === 'pix' ? 'Pix (10% off)' : `Cartão de crédito, ${installments}x`}</span></p>
+            <p className="flex justify-between border-t border-[#243b30]/15 pt-3 text-base"><span className="font-semibold text-[#243b30]">Total a pagar</span><strong className="font-display text-2xl text-[#243b30]">{formatBRL(finalTotal)}</strong></p>
+          </div>
+
+          {paymentError && <p className="mt-4 flex items-center gap-2 text-xs text-red-700" role="alert" data-testid="text-payment-error"><AlertCircle size={14} /> {paymentError}</p>}
+          <button type="submit" disabled={createReservation.isPending} className="focus-ring mt-6 flex w-full items-center justify-center gap-2 bg-[#b89b5e] px-5 py-4 text-[10px] font-semibold uppercase tracking-[.16em] text-[#1d2b25] transition hover:bg-[#cfb777] disabled:opacity-60" data-testid="button-confirm-reservation">{createReservation.isPending && <Loader2 size={14} className="animate-spin" />} Confirmar e pagar</button>
         </form>}
 
         {step === 'confirmation' && confirmedReservation && <div data-testid="section-reserve-confirmation">
@@ -302,14 +535,16 @@ function Reserve() {
             <p className="flex justify-between"><span className="text-[#706e67]">Acomodação</span><span className="font-medium text-[#243b30]">{confirmedReservation.accommodationName}</span></p>
             <p className="flex justify-between"><span className="text-[#706e67]">Datas</span><span className="font-medium text-[#243b30]">{confirmedReservation.checkin} a {confirmedReservation.checkout}</span></p>
             <p className="flex justify-between"><span className="text-[#706e67]">Hóspedes</span><span className="font-medium text-[#243b30]">{confirmedReservation.guests}</span></p>
+            <p className="text-xs text-[#706e67]">{confirmedReservation.paymentSummary}</p>
             <p className="flex justify-between border-t border-[#243b30]/15 pt-3"><span className="text-[#706e67]">Valor total</span><strong className="font-display text-lg text-[#243b30]">{formatBRL(confirmedReservation.totalAmount)}</strong></p>
           </div>
-          <p className="mt-4 text-xs leading-5 text-[#706e67]">O pagamento é feito diretamente no check-in — ainda não há cobrança online. Qualquer dúvida, fale com a gente pelo WhatsApp ou por e-mail.</p>
+          <p className="mt-4 text-xs leading-5 text-[#706e67]">Qualquer dúvida sobre sua reserva ou pagamento, fale com a gente pelo WhatsApp {WHATSAPP_DISPLAY} ou por e-mail.</p>
           <Link href="/" className="focus-ring mt-7 inline-flex items-center gap-2 bg-[#243b30] px-5 py-4 text-[10px] font-semibold uppercase tracking-[.16em] text-[#f7f4ee] transition hover:bg-[#345244]" data-testid="link-confirmation-home">Voltar ao início <ArrowRight size={14} /></Link>
         </div>}
       </div>
     </div>
-    <div className="mt-24 border-t border-[#243b30]/15 pt-8 text-sm text-[#706e67]"><div className="flex flex-wrap justify-between gap-5"><span>Hotel Horizon · Campos do Jordão</span><span>+55 12 3663 2040 · cuidado@hotelhorizon.com.br</span></div></div>
+    <div className="mt-24 border-t border-[#243b30]/15 pt-8 text-sm text-[#706e67]"><div className="flex flex-wrap justify-between gap-5"><span>Hotel Horizon · Campos do Jordão</span><span>WhatsApp {WHATSAPP_DISPLAY} · cuidado@hotelhorizon.com.br</span></div></div>
+    {authOpen && <AuthModal reason="Crie sua conta ou entre para continuar com o pagamento da sua reserva." onClose={() => setAuthOpen(false)} onSuccess={() => setStep('payment')} />}
   </main></div>;
 }
 function ShieldIcon() { return <span className="flex h-3.5 w-3.5 items-center justify-center rounded-full border border-[#9a7d42] text-[8px]">✓</span>; }
@@ -326,17 +561,16 @@ function PrivacyPolicy() {
       <section><h2 className="font-display text-2xl text-[#243b30]">3. Para que usamos seus dados</h2><p className="mt-2">Os dados coletados são utilizados exclusivamente para gerenciar sua reserva, confirmar disponibilidade, entrar em contato sobre sua estadia e cumprir obrigações legais e contratuais relacionadas à hospedagem. Não vendemos nem compartilhamos seus dados com terceiros para fins de marketing.</p></section>
       <section><h2 className="font-display text-2xl text-[#243b30]">4. Por quanto tempo guardamos seus dados</h2><p className="mt-2">Mantemos os dados de reservas pelo tempo necessário para cumprir finalidades contratuais, fiscais e legais, após o qual são eliminados ou anonimizados.</p></section>
       <section><h2 className="font-display text-2xl text-[#243b30]">5. Seus direitos</h2><p className="mt-2">Você pode solicitar a qualquer momento a confirmação, correção, portabilidade ou eliminação dos seus dados pessoais, entrando em contato pelo e-mail cuidado@hotelhorizon.com.br.</p></section>
-      <section><h2 className="font-display text-2xl text-[#243b30]">6. Contato</h2><p className="mt-2">Em caso de dúvidas sobre esta política, fale com a gente pelo e-mail cuidado@hotelhorizon.com.br ou pelo telefone +55 12 3663 2040.</p></section>
+      <section><h2 className="font-display text-2xl text-[#243b30]">6. Contato</h2><p className="mt-2">Em caso de dúvidas sobre esta política, fale com a gente pelo e-mail cuidado@hotelhorizon.com.br ou pelo WhatsApp {WHATSAPP_DISPLAY}.</p></section>
     </div>
   </main><Footer /></div>;
 }
 
 function WhatsAppButton() {
-  const message = encodeURIComponent('Olá! Gostaria de tirar uma dúvida sobre uma reserva no Hotel Horizon.');
-  return <a href={`https://wa.me/551236632040?text=${message}`} target="_blank" rel="noreferrer" aria-label="Falar no WhatsApp" className="focus-ring fixed bottom-6 right-6 z-50 flex h-14 w-14 items-center justify-center rounded-full bg-[#25D366] text-white shadow-[0_8px_24px_rgba(0,0,0,.25)] transition hover:scale-105" data-testid="button-whatsapp-float"><MessageCircle size={26} /></a>;
+  return <a href={whatsappLink('Olá! Gostaria de tirar uma dúvida sobre uma reserva no Hotel Horizon.')} target="_blank" rel="noreferrer" aria-label="Falar no WhatsApp" className="focus-ring fixed bottom-6 right-6 z-50 flex h-14 w-14 items-center justify-center rounded-full bg-[#25D366] text-white shadow-[0_8px_24px_rgba(0,0,0,.25)] transition hover:scale-105" data-testid="button-whatsapp-float"><MessageCircle size={26} /></a>;
 }
 
-function Router() { return <ErrorBoundary resetKey={useLocation()[0]}><Switch><Route path="/" component={Home} /><Route path="/acomodacoes/:slug" component={AccommodationDetail} /><Route path="/reservar" component={Reserve} /><Route path="/politica-de-privacidade" component={PrivacyPolicy} /><Route component={NotFound} /></Switch></ErrorBoundary>; }
+function Router() { return <ErrorBoundary resetKey={useLocation()[0]}><Switch><Route path="/" component={Home} /><Route path="/acomodacoes/:slug" component={AccommodationDetail} /><Route path="/reservar" component={Reserve} /><Route path="/restaurante" component={Restaurant} /><Route path="/spa" component={Spa} /><Route path="/politica-de-privacidade" component={PrivacyPolicy} /><Route component={NotFound} /></Switch></ErrorBoundary>; }
 function App() {
   useEffect(() => {
     document.title = 'Hotel Horizon — Uma experiência para lembrar';
@@ -356,13 +590,13 @@ function App() {
       name: 'Hotel Horizon',
       description: 'Refúgio boutique de design, natureza e hospitalidade na Serra da Mantiqueira.',
       address: { '@type': 'PostalAddress', streetAddress: 'Estrada do Horto, 4400, Alto da Boa Vista', addressLocality: 'Campos do Jordão', addressRegion: 'SP', addressCountry: 'BR' },
-      telephone: '+55 12 3663 2040',
+      telephone: WHATSAPP_DISPLAY,
       email: 'cuidado@hotelhorizon.com.br',
       amenityFeature: ['Spa', 'Restaurante', 'Piscina', 'Wi-Fi'],
     });
     document.head.appendChild(schema);
     return () => { schema.remove(); };
   }, []);
-  return <QueryClientProvider client={queryClient}><TooltipProvider><WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, '')}><Router /><WhatsAppButton /></WouterRouter><Toaster /></TooltipProvider></QueryClientProvider>;
+  return <QueryClientProvider client={queryClient}><AuthProvider><TooltipProvider><WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, '')}><Router /><WhatsAppButton /></WouterRouter><Toaster /></TooltipProvider></AuthProvider></QueryClientProvider>;
 }
 export default App;
