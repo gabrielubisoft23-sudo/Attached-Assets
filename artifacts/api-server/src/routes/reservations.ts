@@ -16,12 +16,14 @@ import {
 
 const router: IRouter = Router();
 
+// Diárias-base reduzidas para tornar as suítes mais competitivas
+// (mantendo a mesma proporção relativa entre categorias).
 const defaultRoomTypes = [
   {
     slug: "suite-jardim",
     name: "Suíte Jardim",
     description: "Um espaço acolhedor cercado pela natureza.",
-    pricePerNight: 1850,
+    pricePerNight: 990,
     maxGuests: 2,
     totalRooms: 6,
     photos: ["/images/suite.jpg", "/images/detail.jpg"],
@@ -31,7 +33,7 @@ const defaultRoomTypes = [
     slug: "suite-vista",
     name: "Suíte Vista",
     description: "Conforto e privacidade com uma vista privilegiada.",
-    pricePerNight: 2450,
+    pricePerNight: 1290,
     maxGuests: 2,
     totalRooms: 5,
     photos: ["/images/view.jpg", "/images/suite.jpg"],
@@ -41,7 +43,7 @@ const defaultRoomTypes = [
     slug: "suite-master",
     name: "Suíte Master",
     description: "Uma experiência completa para quem busca exclusividade.",
-    pricePerNight: 3900,
+    pricePerNight: 1990,
     maxGuests: 3,
     totalRooms: 2,
     photos: ["/images/detail.jpg", "/images/view.jpg"],
@@ -51,7 +53,7 @@ const defaultRoomTypes = [
     slug: "suite-bosque",
     name: "Suíte Bosque",
     description: "Silêncio, luz natural e o verde da Mantiqueira por todos os lados.",
-    pricePerNight: 2150,
+    pricePerNight: 1090,
     maxGuests: 2,
     totalRooms: 4,
     photos: ["/images/nature.jpg", "/images/suite.jpg"],
@@ -65,6 +67,19 @@ const offers = {
   "fim-de-semana": { name: "Fim de semana a dois", discountPercent: 10 },
   "ritmo-da-serra": { name: "Ritmo da serra", discountPercent: 15 },
 } as const;
+
+/**
+ * Desconto progressivo por tempo de permanência, aplicado sobre o valor
+ * da diária antes de qualquer oferta promocional:
+ * - 7 noites ou mais: 10% de desconto
+ * - 3 noites ou mais: 5% de desconto
+ * - abaixo disso: sem desconto
+ */
+function lengthOfStayDiscountPercent(nights: number): number {
+  if (nights >= 7) return 10;
+  if (nights >= 3) return 5;
+  return 0;
+}
 
 async function ensureRoomTypes(): Promise<void> {
   await db
@@ -151,16 +166,19 @@ router.get("/rooms/availability", async (req, res): Promise<void> => {
     .from(roomsTable)
     .orderBy(asc(roomsTable.id));
 
+  const nights = nightsBetween(checkin, checkout);
+  const stayDiscountPercent = lengthOfStayDiscountPercent(nights);
   const options = await Promise.all(
     roomTypes.map(async (roomType) => {
       const booked = await bookedRooms(checkinString, checkoutString, roomType.slug);
       const availableRooms = Math.max(roomType.totalRooms - booked, 0);
+      const baseTotal = roomType.pricePerNight * nights * parsed.data.rooms;
       return {
         slug: roomType.slug,
         name: roomType.name,
         description: roomType.description,
         pricePerNight: roomType.pricePerNight,
-        totalPrice: roomType.pricePerNight * nightsBetween(checkin, checkout) * parsed.data.rooms,
+        totalPrice: Math.round(baseTotal * (1 - stayDiscountPercent / 100)),
         photos: roomType.photos,
         amenities: roomType.amenities,
         availableRooms,
@@ -261,13 +279,12 @@ router.post("/reservations", async (req, res): Promise<void> => {
           continue;
         }
 
-        const baseAmount =
-          roomType.pricePerNight *
-          nightsBetween(parsed.data.checkin, parsed.data.checkout) *
-          parsed.data.rooms;
+        const stayNights = nightsBetween(parsed.data.checkin, parsed.data.checkout);
+        const baseAmount = roomType.pricePerNight * stayNights * parsed.data.rooms;
+        const stayDiscounted = Math.round(baseAmount * (1 - lengthOfStayDiscountPercent(stayNights) / 100));
         const totalAmount = selectedOffer
-          ? Math.round(baseAmount * (1 - selectedOffer.discountPercent / 100))
-          : baseAmount;
+          ? Math.round(stayDiscounted * (1 - selectedOffer.discountPercent / 100))
+          : stayDiscounted;
 
         const [created] = await tx
           .insert(reservationsTable)
@@ -414,7 +431,9 @@ router.patch("/reservations/:id", async (req, res): Promise<void> => {
     return;
   }
 
-  const baseAmount = roomType.pricePerNight * nightsBetween(checkinDate, checkoutDate) * nextRooms;
+  const updateNights = nightsBetween(checkinDate, checkoutDate);
+  const baseAmount = roomType.pricePerNight * updateNights * nextRooms;
+  const stayDiscountedAmount = Math.round(baseAmount * (1 - lengthOfStayDiscountPercent(updateNights) / 100));
   const [updated] = await db
     .update(reservationsTable)
     .set({
@@ -426,8 +445,8 @@ router.patch("/reservations/:id", async (req, res): Promise<void> => {
       accommodationSlug: nextSlug,
       accommodationName: roomType.name,
       totalAmount: selectedOffer
-        ? Math.round(baseAmount * (1 - selectedOffer.discountPercent / 100))
-        : baseAmount,
+        ? Math.round(stayDiscountedAmount * (1 - selectedOffer.discountPercent / 100))
+        : stayDiscountedAmount,
       offerCode: body.data.offerCode ?? existing.offerCode,
       offerName: selectedOffer?.name ?? existing.offerName,
     })
